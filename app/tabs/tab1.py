@@ -34,6 +34,7 @@ class Project1Tab(QWidget):
         self.selected_directory = None
         self.init_ui()
         self.worker = None  # Thread to run main loop
+        self.recording = False
 
     def init_ui(self):
         main_layout = QVBoxLayout()

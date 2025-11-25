@@ -137,9 +137,13 @@ class TrackingSession:
                         angle = np.arctan2(dy, dx)
                         insect_pose = [center[0], center[1], angle]
                         
-                    self.pose_data_list.append(time.time(), insect_pose, data)
+                    self.pose_data_list.append((time.time(), insect_pose, data))
         finally:
             self.camera.stop()
 
     def stop(self): 
+        # TODO: Instantiate selected directory as a parameter, and set the timestamp according to aruco_tracking.py
         self.should_run = False
+        df = pd.DataFrame(self.pose_data_list, columns=['time', 'pose', 'arduino_data'])
+        output_filename = os.path.join(self.selected_directory, f"pose_data_{timestamp}.csv")
+        df.to_csv(output_filename, index=False)

@@ -2,6 +2,10 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QComboBox, QHBoxLayout, QLineEdit, QGroupBox
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from tracking import core_tracking
+import os 
+from datetime import datetime 
+import pandas as pd 
+import numpy as np 
 
 class MainWorker(QThread):
     # Define signals here for updating the GUI from the worker thread if needed
@@ -72,6 +76,7 @@ class Project1Tab(QWidget):
         main_layout.addWidget(freq_group)
 
         # Record Button
+        self.recording = False
         self.record_btn = QPushButton("Start Recording")
         self.record_btn.setMinimumWidth(120)
         self.record_btn.clicked.connect(self.toggle_recording)
@@ -101,10 +106,26 @@ class Project1Tab(QWidget):
             self.dir_label.setText(directory)
         else: 
             self.dir_label.setText("(No folder Selected)")
+
+
     def toggle_recording(self):
-        # Start or stop the background recording task
-        # Start/stop MainWorker thread and update UI
-        # Use self.worker = MainWorker(...) and self.worker.start()
+        if self.recording: 
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            output_filename = os.path.join(self.selected_directory, f"pose_data_{timestamp}.csv")
+            pose_data_list = [[10, 10, 10], [10, 10, 10], [10, 10, 10]]
+            # Save pose data to CSV
+            df = pd.DataFrame(pose_data_list, columns=['time', 'pose', 'arduino_data'])
+            df.to_csv(output_filename, index=False)
+            
+            print(f"Recording stopped. Data saved to {output_filename}")
+            pose_data_list = []  # Reset list after saving
+            self.recording = False
+            self.record_btn.setText("Start Recording")
+            self.record_btn.setStyleSheet("background-color: #5677fc; color: white; border-radius: 4px; padding: 4px 12px;")
+        else: 
+            self.recording = True 
+            self.record_btn.setText("Stop Recording")
+            self.record_btn.setStyleSheet("background-color: red; color: white;")
         pass
 
     # Add UI logic for updating widgets based on signals from the worker

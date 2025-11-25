@@ -9,6 +9,7 @@ import time
 import os 
 from datetime import datetime
 import random
+import pygame 
 
 # Example: logic for arduino/serial handling, video tracking, etc.
 
@@ -60,43 +61,85 @@ class PylonCamera:
         self.camera.Close()
 
 class JoystickController:
-    def __init__(self, joysticks, frequency_var, serial_obj):
+    def __init__(self, frequency_var_getter, serial_obj):
+        pygame.init()
+        pygame.joystick.init()
+        joysticks = [pygame.joystick.Joystick(x) for x in range(pygame.joystick.get_count())]
         self.joysticks = joysticks
-        self.frequency_var = frequency_var
+        self.frequency_var_getter = frequency_var_getter
         self.serial_obj = serial_obj
         if joysticks:
             self.previous_button_states = [False] * joysticks[0].get_numbuttons()
 
     def process_input(self):
         data = ""
+        dur = 500
         for joystick in self.joysticks:
             for button in range(joystick.get_numbuttons()):
                 current_button_state = joystick.get_button(button)
                 if current_button_state and not self.previous_button_states[button]:
-                    # handle button logic as before
-                    pass
+                    if button == 0: # A Button
+                        print("We have pressed button: 'A', stimulating both elytra")
+                        side = "Both"
+                        freq = int(self.frequency_var_getter())
+                        message = get_command(dur, freq, side) + '\n'
+                        self.serial_obj.write(message.encode('utf-8'))
+                        data = (f"Both, {freq}")
+
+                    elif button == 3: # Y Button
+                        print("We have pressed button: 'Y', stimulating right antenna")
+                        side = "Right"
+                        freq = int(self.frequency_var_getter())
+                        message = get_command(dur, freq, side) + '\n'
+                        self.serial_obj.write(message.encode('utf-8'))
+                        data = (f"Right, {freq}")
+
+                    elif button == 2:  # X Button
+                        print("We have pressed button: 'X', stimulating left antenna")
+                        side = "Left"
+                        freq = int(self.frequency_var_getter())
+                        message = get_command(dur, freq, side) + '\n'
+                        self.serial_obj.write(message.encode('utf-8'))
+                        data = (f"Left, {freq}")
+                    
+                    elif button == 7: 
+                        print("Start button pressed: Random Frequency")
+                        # rand_freq()
                 self.previous_button_states[button] = current_button_state
+
+
         return data
 
 class TrackingSession:
-    def __init__(self, camera, controller, detector_params):
+    def __init__(self, camera, controller, detector_params, pose_data_list):
         self.camera = camera
         self.controller = controller
         self.detector = cv2.aruco.ArucoDetector(*detector_params)
-        self.recording = False
-        self.pose_data_list = []
+        self.should_run = True
+        self.pose_data_list = pose_data_list 
+
 
     def run(self):
         self.camera.open()
         self.camera.start()
         try:
-            while True:
+            while self.should_run:
                 img = self.camera.get_frame()
                 if img is not None:
-                    # process frame, aruco, etc.
-                    pass
+                    data = self.controller.process_input()
+                    corners, ids, rejected = self.detector.detectMarkers(img)
+                    insect_pose = [None, None, None]
+                    if ids is not None and 1 in ids:
+                        idx = list(ids.flatten()).index(1)
+                        marker_corners = corners[idx][0]
+                        center = marker_corners.mean(axis=0)
+                        dx, dy = marker_corners[1] - marker_corners[0]
+                        angle = np.arctan2(dy, dx)
+                        insect_pose = [center[0], center[1], angle]
+                        
+                    self.pose_data_list.append(time.time(), insect_pose, data)
         finally:
             self.camera.stop()
 
     def stop(self): 
-        self.camera.stop()
+        self.should_run = False

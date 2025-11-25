@@ -6,21 +6,26 @@ import os
 from datetime import datetime 
 import pandas as pd 
 import numpy as np 
+import serial
+import cv2 
 
 class MainWorker(QThread):
-    # Define signals here for updating the GUI from the worker thread if needed
     pose_data_updated = pyqtSignal(list)
     finished = pyqtSignal()
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, session):
         super().__init__()
-        # Accept references to parameters, or pass them as arguments
-        # self.params = params
+        self.session = session
+        self._running = True
 
     def run(self):
-        # Put main loop here – move video grabbing, serial reading, and pose calculation here
-        # Call self.pose_data_updated.emit(pose_data_list) as data is produced, if you want GUI to update live
-        pass
+        # Run session in this thread; implement a stop condition inside your session
+        self.session.run()
+        self.finished.emit()
+
+    def stop(self):
+        self.session.stop()  # Implement stop logic in TrackingSession
+        self._running = False
 
 class Project1Tab(QWidget):
     def __init__(self, parent=None):
@@ -109,27 +114,32 @@ class Project1Tab(QWidget):
 
 
     def toggle_recording(self):
-        if self.recording: 
-            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            output_filename = os.path.join(self.selected_directory, f"pose_data_{timestamp}.csv")
-            pose_data_list = [[10, 10, 10], [10, 10, 10], [10, 10, 10]]
-            # Save pose data to CSV
-            df = pd.DataFrame(pose_data_list, columns=['time', 'pose', 'arduino_data'])
-            df.to_csv(output_filename, index=False)
-            
-            print(f"Recording stopped. Data saved to {output_filename}")
-            pose_data_list = []  # Reset list after saving
+        if self.recording:
+            # Stop everything
+            if self.worker:
+                self.worker.stop()
+                self.worker.wait()
             self.recording = False
             self.record_btn.setText("Start Recording")
-            self.record_btn.setStyleSheet("background-color: #5677fc; color: white; border-radius: 4px; padding: 4px 12px;")
-        else: 
-            self.recording = True 
+            self.record_btn.setStyleSheet("background-color: #5677fc; color: white;")
+        else:
+            # Build hardware objects
+            config_file = r"L:\biorobotics\data\Vertical&InvertedClimbing\CameraFiles\VerticalClimbing.pfs"
+            camera = core_tracking.PylonCamera(config_file)
+            com_port = self.com_port_combo.currentText()
+            serial_obj = serial.Serial(com_port, 115200, timeout=0.1)
+            controller = core_tracking.JoystickController(self.freq_input.text, serial_obj)
+            aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+            parameters = cv2.aruco.DetectorParameters()
+            detector_params = (aruco_dict, parameters)
+
+            self.pose_data_list = []
+            session = core_tracking.TrackingSession(camera, controller, detector_params, self.pose_data_list)
+
+            # Run in thread
+            self.worker = MainWorker(session)
+            self.worker.start()
+            self.recording = True
             self.record_btn.setText("Stop Recording")
             self.record_btn.setStyleSheet("background-color: red; color: white;")
-        pass
 
-    # Add UI logic for updating widgets based on signals from the worker
-
-# In your main window/tab widget setup:
-# from app.tabs.tab1 import Project1Tab
-# tab_widget.addTab(Project1Tab(), "Project 1 Recording")

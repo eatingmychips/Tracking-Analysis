@@ -148,6 +148,17 @@ class Project1Tab(QWidget):
         freq_group.setLayout(freq_layout)
         left_layout.addWidget(freq_group)
 
+        self.save_video_checkbox = QCheckBox("Save Video Enabled")
+        self.save_video_checkbox.setChecked(False)
+        # self.save_video_checkbox.toggled.connect(self.on_toggle_save_video)
+        left_layout.addWidget(self.save_video_checkbox, alignment=Qt.AlignmentFlag.AlignLeft)
+
+
+        #TODO: Add Live Tracking Enabled 
+        self.enable_tracking = QCheckBox("Enable Live Tracking")
+        self.enable_tracking.setChecked(True)
+        left_layout.addWidget(self.enable_tracking, alignment=Qt.AlignmentFlag.AlignLeft)
+
         # Record Button
         self.record_btn = QPushButton("Start Recording")
         self.record_btn.setMinimumWidth(120)
@@ -197,7 +208,7 @@ class Project1Tab(QWidget):
 
     def start_session(self):
         # Build hardware objects only once per session
-        config_file = r"L:\biorobotics\data\Vertical&InvertedClimbing\CameraFiles\VerticalClimbing.pfs"
+        config_file = r"L:\biorobotics\data\Vertical&InvertedClimbing\CameraFiles\ARUCO1200.pfs"
         self.camera = core_tracking.PylonCamera(config_file)
         com_port = self.com_port_combo.currentText()
         self.serial_obj = serial.Serial(com_port, 115200, timeout=0.1)
@@ -217,6 +228,8 @@ class Project1Tab(QWidget):
             directory_getter=self.dir_label.text,
             show_cam_getter=self.show_cam_checkbox.isChecked,
             frame_callback=None,  # will be set by MainWorker
+            save_video_getter=self.save_video_checkbox.isChecked, 
+            enable_tracking_getter=self.enable_tracking.isChecked
         )
 
         self.worker = MainWorker(session)
@@ -232,7 +245,8 @@ class Project1Tab(QWidget):
             self.record_btn.setStyleSheet(
                 "background-color: #5677fc; color: white;"
             )
-
+            self.enable_tracking.setEnabled(True)
+            self.save_video_checkbox.setEnabled(True)
             if self.worker:
                 if self.show_cam_checkbox.isChecked():
                     # Preview ON: save data but keep camera running
@@ -259,7 +273,8 @@ class Project1Tab(QWidget):
 
         if self.worker is None:
             self.start_session()
-
+        self.enable_tracking.setEnabled(False)
+        self.save_video_checkbox.setEnabled(False)
         self.pose_data_list = []
         self.recording = True
         self.record_btn.setText("Stop Recording")

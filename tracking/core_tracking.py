@@ -111,7 +111,7 @@ class JoystickController:
         return data
 
 class TrackingSession:
-    def __init__(self, camera, controller, detector_params, pose_data_list, recording_getter, directory_getter, show_cam_getter, frame_callback):
+    def __init__(self, camera, controller, detector_params, pose_data_list, recording_getter, directory_getter, show_cam_getter, frame_callback, save_video_getter, enable_tracking_getter):
         self.camera = camera
         self.controller = controller
         self.detector = cv2.aruco.ArucoDetector(*detector_params)
@@ -121,7 +121,9 @@ class TrackingSession:
         self.show_cam_getter = show_cam_getter
         self.frame_callback = frame_callback
         self.recording_getter = recording_getter 
-
+        self.save_video_getter = save_video_getter
+        self.enable_tracking_getter = enable_tracking_getter
+        self.video_writer = None
 
     def run(self):
         self.camera.open()
@@ -129,20 +131,36 @@ class TrackingSession:
         try:
             while self.should_run:
                 img = self.camera.get_frame()
+                insect_pose = [None, None, None]
+                data = self.controller.process_input()
                 if img is not None:
-                    data = self.controller.process_input()
-                    corners, ids, rejected = self.detector.detectMarkers(img)
-                    insect_pose = [None, None, None]
-                    if ids is not None and 1 in ids:
-                        idx = list(ids.flatten()).index(1)
-                        marker_corners = corners[idx][0]
-                        center = marker_corners.mean(axis=0)
-                        dx, dy = marker_corners[1] - marker_corners[0]
-                        angle = np.arctan2(dy, dx)
-                        insect_pose = [center[0], center[1], angle]
+                    if self.recording_getter():    
+                        if self.enable_tracking_getter():    
+                            corners, ids, rejected = self.detector.detectMarkers(img)    
+                            if ids is not None and 1 in ids:
+                                idx = list(ids.flatten()).index(1)
+                                marker_corners = corners[idx][0]
+                                center = marker_corners.mean(axis=0)
+                                dx, dy = marker_corners[1] - marker_corners[0]
+                                angle = np.arctan2(dy, dx)
+                                insect_pose = [center[0], center[1], angle]
+                            self.pose_data_list.append((time.time(), insect_pose, data))
+
+                        if self.save_video_getter():
+                            if self.video_writer is None:
+                                h, w, _ = img.shape
+                                fourcc = cv2.VideoWriter_fourcc(*'XVID')
+                                directory = self.directory_getter()
+                                timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                                video_filename = os.path.join(
+                                    directory,
+                                    f"pose_data_{timestamp}.avi"
+                                )
+                                self.video_writer = cv2.VideoWriter(
+                                    video_filename, fourcc, 25, (w, h)
+                                )
+                            self.video_writer.write(img)
                     
-                    if self.recording_getter():
-                        self.pose_data_list.append((time.time(), insect_pose, data))
 
                     if self.show_cam_getter and self.show_cam_getter(): 
                         self.frame_callback(img)

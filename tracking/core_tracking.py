@@ -141,6 +141,7 @@ class TrackingSession:
                 insect_pose = [None, None, None]
                 data = self.controller.process_input()
                 if img is not None:
+                    #TODO: Add file saving for Video Only 
                     if self.callbacks.recording_getter():    
                         if self.callbacks.enable_tracking_getter():    
                             corners, ids, rejected = self.detector.detectMarkers(img)    
@@ -151,7 +152,6 @@ class TrackingSession:
                                 dx, dy = marker_corners[1] - marker_corners[0]
                                 angle = np.arctan2(dy, dx)
                                 insect_pose = [center[0], center[1], angle]
-                            self.pose_data_list.append((time.time(), insect_pose, data))
 
                         if self.callbacks.save_video_getter():
                             if self.video_writer is None:
@@ -167,7 +167,8 @@ class TrackingSession:
                                     video_filename, fourcc, 102, (w, h)
                                 )
                             self.video_writer.write(img)
-                    
+                            
+                        self.pose_data_list.append((time.time(), insect_pose, data))
 
                     if self.callbacks.show_cam_getter and self.callbacks.show_cam_getter(): 
                         self.callbacks.frame_callback(img)

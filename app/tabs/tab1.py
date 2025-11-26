@@ -316,7 +316,7 @@ class Project1Tab(QWidget):
         else: 
             freq -= 10
             if freq < 10: 
-                freq = 10
+                freq = 50
         
         self.freq_input.setText(str(freq))
         

@@ -111,12 +111,16 @@ class JoystickController:
         return data
 
 class TrackingSession:
-    def __init__(self, camera, controller, detector_params, pose_data_list):
+    def __init__(self, camera, controller, detector_params, pose_data_list, recording_getter, directory_getter, show_cam_getter, frame_callback):
         self.camera = camera
         self.controller = controller
         self.detector = cv2.aruco.ArucoDetector(*detector_params)
         self.should_run = True
         self.pose_data_list = pose_data_list 
+        self.directory_getter = directory_getter
+        self.show_cam_getter = show_cam_getter
+        self.frame_callback = frame_callback
+        self.recording_getter = recording_getter 
 
 
     def run(self):
@@ -136,14 +140,23 @@ class TrackingSession:
                         dx, dy = marker_corners[1] - marker_corners[0]
                         angle = np.arctan2(dy, dx)
                         insect_pose = [center[0], center[1], angle]
+                    
+                    if self.recording_getter():
+                        self.pose_data_list.append((time.time(), insect_pose, data))
+
+                    if self.show_cam_getter and self.show_cam_getter(): 
+                        self.frame_callback(img)
                         
-                    self.pose_data_list.append((time.time(), insect_pose, data))
         finally:
             self.camera.stop()
 
     def stop(self): 
-        # TODO: Instantiate selected directory as a parameter, and set the timestamp according to aruco_tracking.py
-        self.should_run = False
-        df = pd.DataFrame(self.pose_data_list, columns=['time', 'pose', 'arduino_data'])
-        output_filename = os.path.join(self.selected_directory, f"pose_data_{timestamp}.csv")
-        df.to_csv(output_filename, index=False)
+        if not (self.show_cam_getter and self.show_cam_getter()): 
+            self.should_run = False 
+
+        if len(self.pose_data_list) != 0: 
+            df = pd.DataFrame(self.pose_data_list, columns=['time', 'pose', 'arduino_data'])
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            output_filename = os.path.join(self.directory_getter(), f"pose_data_{timestamp}.csv")
+            df.to_csv(output_filename, index=False)
+            print(f"Data saved to {self.directory_getter()}")

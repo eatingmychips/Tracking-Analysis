@@ -1,6 +1,7 @@
 # app/tabs/tab1.py
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QComboBox, QHBoxLayout, QLineEdit, QGroupBox
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QComboBox, QHBoxLayout, QLineEdit, QGroupBox, QCheckBox, QFileDialog, QMessageBox
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
+from PyQt6.QtGui import QImage, QPixmap
 from tracking import core_tracking
 import os 
 from datetime import datetime 
@@ -31,15 +32,21 @@ class Project1Tab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.pose_data_list = []
-        self.selected_directory = None
         self.init_ui()
         self.worker = None  # Thread to run main loop
         self.recording = False
+        self.serial_obj = None
+        self.camera = None
 
     def init_ui(self):
-        main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(15, 15, 15, 15)
-        main_layout.setSpacing(12)
+        # Root: horizontal split
+        root_layout = QHBoxLayout()
+        root_layout.setContentsMargins(15, 15, 15, 15)
+        root_layout.setSpacing(12)
+
+        # LEFT COLUMN (your existing controls)
+        left_layout = QVBoxLayout()
+        left_layout.setSpacing(12)
 
         # Serial Port Group
         port_group = QGroupBox("Serial Port Settings")
@@ -53,7 +60,7 @@ class Project1Tab(QWidget):
         port_layout.addWidget(self.com_port_combo)
         port_layout.addStretch()
         port_group.setLayout(port_layout)
-        main_layout.addWidget(port_group)
+        left_layout.addWidget(port_group)
 
         # Directory Selection
         dir_group = QGroupBox("Save Location")
@@ -66,7 +73,7 @@ class Project1Tab(QWidget):
         dir_layout.addWidget(self.dir_label)
         dir_layout.addStretch()
         dir_group.setLayout(dir_layout)
-        main_layout.addWidget(dir_group)
+        left_layout.addWidget(dir_group)
 
         # Frequency Input Group
         freq_group = QGroupBox("Recording Settings")
@@ -79,22 +86,38 @@ class Project1Tab(QWidget):
         freq_layout.addWidget(self.freq_input)
         freq_layout.addStretch()
         freq_group.setLayout(freq_layout)
-        main_layout.addWidget(freq_group)
+        left_layout.addWidget(freq_group)
 
         # Record Button
-        self.recording = False
         self.record_btn = QPushButton("Start Recording")
         self.record_btn.setMinimumWidth(120)
         self.record_btn.clicked.connect(self.toggle_recording)
-        main_layout.addWidget(self.record_btn, alignment=Qt.AlignmentFlag.AlignLeft)
+        left_layout.addWidget(self.record_btn, alignment=Qt.AlignmentFlag.AlignLeft)
 
-        # Status Label
-        self.result_label = QLabel("Status: Idle")
-        self.result_label.setStyleSheet("QLabel { color: #333; }")
-        main_layout.addWidget(self.result_label, alignment=Qt.AlignmentFlag.AlignLeft)
+        left_layout.addStretch()  # push everything up
+        # END LEFT COLUMN
 
-        main_layout.addStretch()
-        self.setLayout(main_layout)
+        # RIGHT COLUMN (video + checkbox)
+        right_layout = QVBoxLayout()
+        right_layout.setSpacing(8)
+
+        self.camera_label = QLabel()
+        self.camera_label.setMinimumSize(640, 480)
+        self.camera_label.setStyleSheet("background-color: black;")
+        right_layout.addWidget(self.camera_label)
+
+        self.show_cam_checkbox = QCheckBox("Show camera stream")
+        self.show_cam_checkbox.setChecked(False)
+        self.show_cam_checkbox.toggled.connect(self.on_toggle_camera_view)
+        right_layout.addWidget(self.show_cam_checkbox, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        right_layout.addStretch()
+
+        # Add left and right columns to root layout
+        root_layout.addLayout(left_layout, stretch=0)   # content-determined width
+        root_layout.addLayout(right_layout, stretch=1)  # expands to fill remaining space
+
+        self.setLayout(root_layout)
 
         # Optional: Minimal stylesheet for a modern look
         self.setStyleSheet("""
@@ -108,7 +131,6 @@ class Project1Tab(QWidget):
         dialog = QFileDialog(self)
         directory = dialog.getExistingDirectory()
         if directory:
-            self.selected_directory = directory
             self.dir_label.setText(directory)
         else: 
             self.dir_label.setText("(No folder Selected)")
@@ -116,31 +138,120 @@ class Project1Tab(QWidget):
 
     def toggle_recording(self):
         if self.recording:
-            # Stop everything
-            if self.worker:
-                self.worker.stop()
-                self.worker.wait()
+            self.pose_data_list = []
             self.recording = False
             self.record_btn.setText("Start Recording")
             self.record_btn.setStyleSheet("background-color: #5677fc; color: white;")
+            
+            # Stop everything
+            if self.worker and not self.show_cam_checkbox.isChecked:
+                self.worker.stop()
+                self.worker.wait()
+                
+
+            else: 
+                self.worker.stop()
+            
+            if self.serial_obj is not None: 
+                if self.serial_obj.is_open: 
+                    self.serial_obj.close()
+                self.serial_obj = None 
+
+        elif self.worker is None:
+            print(self.dir_label.text)
+            if self.dir_label.text() == '(No Folder Selected)':
+                QMessageBox.information(
+                    self,                             # parent (e.g. your tab)
+                    "Choose a folder",                # title
+                    "Please choose a folder first.",  # text
+                    QMessageBox.StandardButton.Ok     # buttons
+                )
+            else: 
+                # Build hardware objects
+                config_file = r"L:\biorobotics\data\Vertical&InvertedClimbing\CameraFiles\VerticalClimbing.pfs"
+
+                self.camera = core_tracking.PylonCamera(config_file)
+                com_port = self.com_port_combo.currentText()
+                self.serial_obj = serial.Serial(com_port, 115200, timeout=0.1)
+                controller = core_tracking.JoystickController(self.freq_input.text, self.serial_obj)
+                aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+                parameters = cv2.aruco.DetectorParameters()
+                detector_params = (aruco_dict, parameters)
+
+                self.pose_data_list = []
+                self.recording = True
+                session = core_tracking.TrackingSession(self.camera, controller, detector_params, 
+                                                        self.pose_data_list, recording_getter=self.get_recording_state, 
+                                                        directory_getter=self.dir_label.text, 
+                                                        show_cam_getter=self.show_cam_checkbox.isChecked,
+                                                        frame_callback=self.update_camera_frame)
+
+                # Run in thread
+                self.worker = MainWorker(session)
+                self.worker.start()
+                
+                self.record_btn.setText("Stop Recording")
+                self.record_btn.setStyleSheet("background-color: red; color: white;")
+
+        elif self.worker is not None: 
+            print(self.dir_label.text)
+            if self.dir_label.text() == '(No Folder Selected)': 
+                QMessageBox.information(
+                    self,                             # parent (e.g. your tab)
+                    "Choose a folder",                # title
+                    "Please choose a folder first.",  # text
+                    QMessageBox.StandardButton.Ok     # buttons
+                )
+            else: 
+                self.pose_data_list = []
+                self.recording = True
+                self.record_btn.setText("Stop Recording")
+                self.record_btn.setStyleSheet("background-color: red; color: white;")
+
+    def get_recording_state(self): 
+        return self.recording
+        
+
+    def on_toggle_camera_view(self, checked: bool):
+        if checked:
+            if self.recording: 
+                self.camera_label.show()
+            if not self.recording: 
+                config_file = r"L:\biorobotics\data\Vertical&InvertedClimbing\CameraFiles\VerticalClimbing.pfs"
+                self.camera = core_tracking.PylonCamera(config_file)
+                aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+                parameters = cv2.aruco.DetectorParameters()
+                detector_params = (aruco_dict, parameters)
+                controller = core_tracking.JoystickController(self.freq_input.text, self.serial_obj)
+                session = core_tracking.TrackingSession(self.camera, controller, detector_params, 
+                                                    self.pose_data_list, recording_getter=self.get_recording_state, 
+                                                    directory_getter=self.dir_label.text, 
+                                                    show_cam_getter=self.show_cam_checkbox.isChecked,
+                                                    frame_callback=self.update_camera_frame)
+                self.worker = MainWorker(session)
+                self.worker.start()
+                self.camera_label.show()
+
         else:
-            # Build hardware objects
-            config_file = r"L:\biorobotics\data\Vertical&InvertedClimbing\CameraFiles\VerticalClimbing.pfs"
-            camera = core_tracking.PylonCamera(config_file)
-            com_port = self.com_port_combo.currentText()
-            serial_obj = serial.Serial(com_port, 115200, timeout=0.1)
-            controller = core_tracking.JoystickController(self.freq_input.text, serial_obj)
-            aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-            parameters = cv2.aruco.DetectorParameters()
-            detector_params = (aruco_dict, parameters)
+            if self.recording: 
+                self.camera_label.hide()
+            else: 
+                if self.worker:
+                    self.worker.stop()
+                    self.worker.wait()
+                    self.camera_label.hide()
 
-            self.pose_data_list = []
-            session = core_tracking.TrackingSession(camera, controller, detector_params, self.pose_data_list)
-
-            # Run in thread
-            self.worker = MainWorker(session)
-            self.worker.start()
-            self.recording = True
-            self.record_btn.setText("Stop Recording")
-            self.record_btn.setStyleSheet("background-color: red; color: white;")
-
+    
+    def update_camera_frame(self, img):
+        # img: OpenCV BGR numpy array
+        rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb.shape
+        bytes_per_line = ch * w
+        qimg = QImage(rgb.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+        pix = QPixmap.fromImage(qimg).scaled(
+            self.camera_label.width(),
+            self.camera_label.height(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        self.camera_label.setPixmap(pix)

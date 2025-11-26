@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QFileDial
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QSize
 from PyQt6.QtGui import QImage, QPixmap, QIcon
 from tracking import core_tracking
+from tracking.core_tracking import SessionCallbacks
 import os 
 from datetime import datetime 
 import pandas as pd 
@@ -20,7 +21,7 @@ class MainWorker(QThread):
         super().__init__()
         self.session = session
         self._running = True
-        self.session.frame_callback = self.frame_ready.emit
+        self.session.callbacks.frame_callback = self.frame_ready.emit
 
     def run(self):
         # Run session in this thread; implement a stop condition inside your session
@@ -219,17 +220,20 @@ class Project1Tab(QWidget):
 
         self.pose_data_list = []
 
+        callbacks = SessionCallbacks(
+            recording_getter=self.get_recording_state,
+            directory_getter=self.dir_label.text,
+            show_cam_getter=self.show_cam_checkbox.isChecked,
+            save_video_getter=self.save_video_checkbox.isChecked,
+            enable_tracking_getter=self.enable_tracking.isChecked,
+            frame_callback=None,  # set later by MainWorker
+        )
         session = core_tracking.TrackingSession(
             self.camera,
             controller,
             detector_params,
             self.pose_data_list,
-            recording_getter=self.get_recording_state,
-            directory_getter=self.dir_label.text,
-            show_cam_getter=self.show_cam_checkbox.isChecked,
-            frame_callback=None,  # will be set by MainWorker
-            save_video_getter=self.save_video_checkbox.isChecked, 
-            enable_tracking_getter=self.enable_tracking.isChecked
+            callbacks
         )
 
         self.worker = MainWorker(session)

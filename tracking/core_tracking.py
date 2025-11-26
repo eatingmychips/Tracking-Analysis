@@ -10,8 +10,17 @@ import os
 from datetime import datetime
 import random
 import pygame 
+from dataclasses import dataclass 
+from typing import Callable, Optional 
 
-# Example: logic for arduino/serial handling, video tracking, etc.
+@dataclass
+class SessionCallbacks:
+    recording_getter: Callable[[], bool]
+    directory_getter: Callable[[], str]
+    show_cam_getter: Callable[[], bool]
+    save_video_getter: Callable[[], bool]
+    enable_tracking_getter: Callable[[], bool]
+    frame_callback: Optional[Callable[[np.ndarray], None]] = None
 
 def get_com_ports():
     import serial.tools.list_ports
@@ -111,18 +120,13 @@ class JoystickController:
         return data
 
 class TrackingSession:
-    def __init__(self, camera, controller, detector_params, pose_data_list, recording_getter, directory_getter, show_cam_getter, frame_callback, save_video_getter, enable_tracking_getter):
+    def __init__(self, camera, controller, detector_params, pose_data_list, callbacks: SessionCallbacks):
         self.camera = camera
         self.controller = controller
         self.detector = cv2.aruco.ArucoDetector(*detector_params)
         self.should_run = True
         self.pose_data_list = pose_data_list 
-        self.directory_getter = directory_getter
-        self.show_cam_getter = show_cam_getter
-        self.frame_callback = frame_callback
-        self.recording_getter = recording_getter 
-        self.save_video_getter = save_video_getter
-        self.enable_tracking_getter = enable_tracking_getter
+        self.callbacks = callbacks
         self.video_writer = None
 
     def run(self):
@@ -134,8 +138,8 @@ class TrackingSession:
                 insect_pose = [None, None, None]
                 data = self.controller.process_input()
                 if img is not None:
-                    if self.recording_getter():    
-                        if self.enable_tracking_getter():    
+                    if self.callbacks.recording_getter():    
+                        if self.callbacks.enable_tracking_getter():    
                             corners, ids, rejected = self.detector.detectMarkers(img)    
                             if ids is not None and 1 in ids:
                                 idx = list(ids.flatten()).index(1)
@@ -146,11 +150,11 @@ class TrackingSession:
                                 insect_pose = [center[0], center[1], angle]
                             self.pose_data_list.append((time.time(), insect_pose, data))
 
-                        if self.save_video_getter():
+                        if self.callbacks.save_video_getter():
                             if self.video_writer is None:
                                 h, w, _ = img.shape
                                 fourcc = cv2.VideoWriter_fourcc(*'XVID')
-                                directory = self.directory_getter()
+                                directory = self.callbacks.directory_getter()
                                 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                                 video_filename = os.path.join(
                                     directory,
@@ -162,8 +166,8 @@ class TrackingSession:
                             self.video_writer.write(img)
                     
 
-                    if self.show_cam_getter and self.show_cam_getter(): 
-                        self.frame_callback(img)
+                    if self.callbacks.show_cam_getter and self.callbacks.show_cam_getter(): 
+                        self.callbacks.frame_callback(img)
                         
         finally:
             self.camera.stop()
@@ -178,11 +182,11 @@ class TrackingSession:
                                 columns=['time', 'pose', 'arduino_data'])
                 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                 output_filename = os.path.join(
-                    self.directory_getter(),
+                    self.callbacks.directory_getter(),
                     f"pose_data_{timestamp}.csv"
                 )
                 df.to_csv(output_filename, index=False)
-                print(f"Data saved to {self.directory_getter()}")
+                print(f"Data saved to {self.callbacks.directory_getter()}")
             self.pose_data_list = []
         else: 
             return 

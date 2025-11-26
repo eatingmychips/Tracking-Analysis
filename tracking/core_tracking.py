@@ -150,13 +150,17 @@ class TrackingSession:
         finally:
             self.camera.stop()
 
-    def stop(self): 
-        if not (self.show_cam_getter and self.show_cam_getter()): 
-            self.should_run = False 
+    def stop(self, stop_loop: bool = True):
+        if stop_loop:
+            self.should_run = False
 
-        if len(self.pose_data_list) != 0: 
-            df = pd.DataFrame(self.pose_data_list, columns=['time', 'pose', 'arduino_data'])
+        if len(self.pose_data_list) >= 1:
+            df = pd.DataFrame(self.pose_data_list,
+                              columns=['time', 'pose', 'arduino_data'])
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            output_filename = os.path.join(self.directory_getter(), f"pose_data_{timestamp}.csv")
+            output_filename = os.path.join(
+                self.directory_getter(),
+                f"pose_data_{timestamp}.csv"
+            )
             df.to_csv(output_filename, index=False)
             print(f"Data saved to {self.directory_getter()}")

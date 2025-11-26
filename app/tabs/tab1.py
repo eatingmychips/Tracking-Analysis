@@ -13,19 +13,21 @@ import cv2
 class MainWorker(QThread):
     pose_data_updated = pyqtSignal(list)
     finished = pyqtSignal()
-
+    frame_ready = pyqtSignal(object)
+     
     def __init__(self, session):
         super().__init__()
         self.session = session
         self._running = True
+        self.session.frame_callback = self.frame_ready.emit
 
     def run(self):
         # Run session in this thread; implement a stop condition inside your session
         self.session.run()
         self.finished.emit()
 
-    def stop(self):
-        self.session.stop()  # Implement stop logic in TrackingSession
+    def stop(self, stop_loop: bool = True):
+        self.session.stop(stop_loop)  # Implement stop logic in TrackingSession
         self._running = False
 
 class Project1Tab(QWidget):
@@ -135,78 +137,75 @@ class Project1Tab(QWidget):
         else: 
             self.dir_label.setText("(No folder Selected)")
 
+    def start_session(self):
+        # Build hardware objects only once per session
+        config_file = r"L:\biorobotics\data\Vertical&InvertedClimbing\CameraFiles\VerticalClimbing.pfs"
+        self.camera = core_tracking.PylonCamera(config_file)
+        com_port = self.com_port_combo.currentText()
+        self.serial_obj = serial.Serial(com_port, 115200, timeout=0.1)
+        controller = core_tracking.JoystickController(self.freq_input.text, self.serial_obj)
+        aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+        parameters = cv2.aruco.DetectorParameters()
+        detector_params = (aruco_dict, parameters)
+
+        self.pose_data_list = []
+
+        session = core_tracking.TrackingSession(
+            self.camera,
+            controller,
+            detector_params,
+            self.pose_data_list,
+            recording_getter=self.get_recording_state,
+            directory_getter=self.dir_label.text,
+            show_cam_getter=self.show_cam_checkbox.isChecked,
+            frame_callback=None,  # will be set by MainWorker
+        )
+
+        self.worker = MainWorker(session)
+        self.worker.frame_ready.connect(self.update_camera_frame)
+        self.worker.start()
+
 
     def toggle_recording(self):
+        # STOP RECORDING
         if self.recording:
-            self.pose_data_list = []
             self.recording = False
             self.record_btn.setText("Start Recording")
-            self.record_btn.setStyleSheet("background-color: #5677fc; color: white;")
-            
-            # Stop everything
-            if self.worker and not self.show_cam_checkbox.isChecked:
-                self.worker.stop()
-                self.worker.wait()
-                
+            self.record_btn.setStyleSheet(
+                "background-color: #5677fc; color: white;"
+            )
 
-            else: 
-                self.worker.stop()
-            
-            if self.serial_obj is not None: 
-                if self.serial_obj.is_open: 
-                    self.serial_obj.close()
-                self.serial_obj = None 
+            if self.worker:
+                if self.show_cam_checkbox.isChecked():
+                    # Preview ON: save data but keep camera running
+                    self.worker.stop(stop_loop=False)
+                else:
+                    # Preview OFF: save data and stop session
+                    self.worker.stop(stop_loop=True)
+                    self.worker.wait()
+                    self.worker = None
+                    if self.serial_obj is not None and self.serial_obj.is_open:
+                        self.serial_obj.close()
+                    self.serial_obj = None
+            return
 
-        elif self.worker is None:
-            print(self.dir_label.text)
-            if self.dir_label.text() == '(No Folder Selected)':
-                QMessageBox.information(
-                    self,                             # parent (e.g. your tab)
-                    "Choose a folder",                # title
-                    "Please choose a folder first.",  # text
-                    QMessageBox.StandardButton.Ok     # buttons
-                )
-            else: 
-                # Build hardware objects
-                config_file = r"L:\biorobotics\data\Vertical&InvertedClimbing\CameraFiles\VerticalClimbing.pfs"
+        # START RECORDING
+        if self.dir_label.text() == '(No Folder Selected)':
+            QMessageBox.information(
+                self,
+                "Choose a folder",
+                "Please choose a folder first.",
+                QMessageBox.StandardButton.Ok
+            )
+            return
 
-                self.camera = core_tracking.PylonCamera(config_file)
-                com_port = self.com_port_combo.currentText()
-                self.serial_obj = serial.Serial(com_port, 115200, timeout=0.1)
-                controller = core_tracking.JoystickController(self.freq_input.text, self.serial_obj)
-                aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-                parameters = cv2.aruco.DetectorParameters()
-                detector_params = (aruco_dict, parameters)
+        if self.worker is None:
+            self.start_session()
 
-                self.pose_data_list = []
-                self.recording = True
-                session = core_tracking.TrackingSession(self.camera, controller, detector_params, 
-                                                        self.pose_data_list, recording_getter=self.get_recording_state, 
-                                                        directory_getter=self.dir_label.text, 
-                                                        show_cam_getter=self.show_cam_checkbox.isChecked,
-                                                        frame_callback=self.update_camera_frame)
-
-                # Run in thread
-                self.worker = MainWorker(session)
-                self.worker.start()
-                
-                self.record_btn.setText("Stop Recording")
-                self.record_btn.setStyleSheet("background-color: red; color: white;")
-
-        elif self.worker is not None: 
-            print(self.dir_label.text)
-            if self.dir_label.text() == '(No Folder Selected)': 
-                QMessageBox.information(
-                    self,                             # parent (e.g. your tab)
-                    "Choose a folder",                # title
-                    "Please choose a folder first.",  # text
-                    QMessageBox.StandardButton.Ok     # buttons
-                )
-            else: 
-                self.pose_data_list = []
-                self.recording = True
-                self.record_btn.setText("Stop Recording")
-                self.record_btn.setStyleSheet("background-color: red; color: white;")
+        self.pose_data_list = []
+        self.recording = True
+        self.record_btn.setText("Stop Recording")
+        self.record_btn.setStyleSheet("background-color: red; color: white;")
 
     def get_recording_state(self): 
         return self.recording
@@ -214,32 +213,21 @@ class Project1Tab(QWidget):
 
     def on_toggle_camera_view(self, checked: bool):
         if checked:
-            if self.recording: 
-                self.camera_label.show()
-            if not self.recording: 
-                config_file = r"L:\biorobotics\data\Vertical&InvertedClimbing\CameraFiles\VerticalClimbing.pfs"
-                self.camera = core_tracking.PylonCamera(config_file)
-                aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-                parameters = cv2.aruco.DetectorParameters()
-                detector_params = (aruco_dict, parameters)
-                controller = core_tracking.JoystickController(self.freq_input.text, self.serial_obj)
-                session = core_tracking.TrackingSession(self.camera, controller, detector_params, 
-                                                    self.pose_data_list, recording_getter=self.get_recording_state, 
-                                                    directory_getter=self.dir_label.text, 
-                                                    show_cam_getter=self.show_cam_checkbox.isChecked,
-                                                    frame_callback=self.update_camera_frame)
-                self.worker = MainWorker(session)
-                self.worker.start()
-                self.camera_label.show()
-
+            self.camera_label.show()
+            # If no session yet, start a preview-only session
+            if self.worker is None:
+                # If you require a folder even for preview, you can optionally check here
+                self.start_session()
         else:
-            if self.recording: 
-                self.camera_label.hide()
-            else: 
-                if self.worker:
-                    self.worker.stop()
-                    self.worker.wait()
-                    self.camera_label.hide()
+            self.camera_label.hide()
+            # If not recording, and user turns off preview, stop session entirely
+            if not self.recording and self.worker:
+                self.worker.stop()
+                self.worker.wait()
+                self.worker = None
+                if self.serial_obj is not None and self.serial_obj.is_open:
+                    self.serial_obj.close()
+                self.serial_obj = None
 
     
     def update_camera_frame(self, img):

@@ -1,13 +1,14 @@
 # app/tabs/tab1.py
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QComboBox, QHBoxLayout, QLineEdit, QGroupBox, QCheckBox, QFileDialog, QMessageBox
-from PyQt6.QtCore import QThread, pyqtSignal, Qt
-from PyQt6.QtGui import QImage, QPixmap
+from PyQt6.QtCore import QThread, pyqtSignal, Qt, QSize
+from PyQt6.QtGui import QImage, QPixmap, QIcon
 from tracking import core_tracking
 import os 
 from datetime import datetime 
 import pandas as pd 
 import numpy as np 
 import serial
+import random
 import cv2 
 
 class MainWorker(QThread):
@@ -78,14 +79,71 @@ class Project1Tab(QWidget):
         left_layout.addWidget(dir_group)
 
         # Frequency Input Group
-        freq_group = QGroupBox("Recording Settings")
+        freq_group = QGroupBox("Frequency Settings")
         freq_layout = QHBoxLayout()
-        freq_label = QLabel("Frequency (Hz):")
-        freq_label.setMinimumWidth(110)
+        freq_label = QLabel("Freq (Hz):")
+        freq_label.setMinimumWidth(40)
         self.freq_input = QLineEdit("10")
-        self.freq_input.setMinimumWidth(80)
+        self.freq_input.setMinimumWidth(30)
+
+        self.up_btn = QPushButton()
+        self.up_btn.setIcon(QIcon("resources/uparrow.png"))
+        self.up_btn.setFixedSize(40, 40)
+        self.up_btn.setIconSize(QSize(35, 35))
+        self.up_btn.clicked.connect(lambda: self.up_down_freq(True))
+
+        self.down_btn = QPushButton()
+        self.down_btn.setIcon(QIcon("resources/down_arrow.png"))
+        self.down_btn.setFixedSize(40, 40)
+        self.down_btn.setIconSize(QSize(35, 35))
+        self.down_btn.clicked.connect(lambda: self.up_down_freq(False))
+
+        self.rand_btn = QPushButton()  
+        self.rand_btn.setIcon(QIcon("resources/dice.jpg"))
+        self.rand_btn.setFixedSize(50, 50)
+        self.rand_btn.setIconSize(QSize(46, 46))
+        self.rand_btn.clicked.connect(self.rand_freq)  # your function
+
+        # Remove blue background/border
+        self.rand_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                border: none;
+                padding: 0;
+            }
+            QPushButton:pressed {
+                background-color: transparent;
+            }
+        """)
+
+        self.up_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                border: none;
+                padding: 0;
+            }
+            QPushButton:pressed {
+                background-color: transparent;
+            }
+        """)
+
+        self.down_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                border: none;
+                padding: 0;
+            }
+            QPushButton:pressed {
+                background-color: transparent;
+            }
+        """)
+        
+        
         freq_layout.addWidget(freq_label)
         freq_layout.addWidget(self.freq_input)
+        freq_layout.addWidget(self.up_btn)
+        freq_layout.addWidget(self.down_btn)
+        freq_layout.addWidget(self.rand_btn)
         freq_layout.addStretch()
         freq_group.setLayout(freq_layout)
         left_layout.addWidget(freq_group)
@@ -209,8 +267,25 @@ class Project1Tab(QWidget):
 
     def get_recording_state(self): 
         return self.recording
-        
+    
+    def rand_freq(self): 
+        possible_freqs = [10, 20, 30, 40, 50]
+        rand_freq = str(random.choice(possible_freqs))
+        self.freq_input.setText(rand_freq)
 
+    def up_down_freq(self, up: bool): 
+        freq = int(self.freq_input.text())
+        if up: 
+            freq += 10
+            if freq > 50: 
+                freq = 10
+        else: 
+            freq -= 10
+            if freq < 10: 
+                freq = 10
+        
+        self.freq_input.setText(str(freq))
+        
     def on_toggle_camera_view(self, checked: bool):
         if checked:
             self.camera_label.show()

@@ -20,7 +20,9 @@ class SessionCallbacks:
     show_cam_getter: Callable[[], bool]
     save_video_getter: Callable[[], bool]
     enable_tracking_getter: Callable[[], bool]
+    filename_getter: Callable[[], str]
     frame_callback: Optional[Callable[[np.ndarray], None]] = None
+
 
 def get_com_ports():
     import serial.tools.list_ports
@@ -130,6 +132,7 @@ class TrackingSession:
         self.video_writer = None
 
     def run(self):
+        self.video_writer = None
         self.camera.open()
         self.camera.start()
         try:
@@ -158,10 +161,10 @@ class TrackingSession:
                                 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                                 video_filename = os.path.join(
                                     directory,
-                                    f"pose_data_{timestamp}.avi"
+                                    f"{self.callbacks.filename_getter()}_{timestamp}.avi"
                                 )
                                 self.video_writer = cv2.VideoWriter(
-                                    video_filename, fourcc, 25, (w, h)
+                                    video_filename, fourcc, 102, (w, h)
                                 )
                             self.video_writer.write(img)
                     
@@ -176,6 +179,11 @@ class TrackingSession:
         if stop_loop:
             self.should_run = False
 
+        # Close video writer and reset
+        if self.video_writer is not None:
+            self.video_writer.release()
+            self.video_writer = None
+
         if save: 
             if len(self.pose_data_list) >= 1:
                 df = pd.DataFrame(self.pose_data_list,
@@ -183,7 +191,7 @@ class TrackingSession:
                 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                 output_filename = os.path.join(
                     self.callbacks.directory_getter(),
-                    f"pose_data_{timestamp}.csv"
+                    f"{self.callbacks.filename_getter()}_pose_{timestamp}.csv"
                 )
                 df.to_csv(output_filename, index=False)
                 print(f"Data saved to {self.callbacks.directory_getter()}")

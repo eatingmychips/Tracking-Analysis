@@ -80,6 +80,15 @@ class Project1Tab(QWidget):
         left_layout.addWidget(dir_group)
 
         # Frequency Input Group
+        nameing_group = QGroupBox("File Naming")
+        naming_layout = QHBoxLayout()
+        naming_label = QLabel("Filename:")
+        naming_label.setMinimumWidth(40)
+        self.naming_input = QLineEdit("data")
+        self.naming_input.setMinimumWidth(150)
+
+
+        # Frequency Input Group
         freq_group = QGroupBox("Frequency Settings")
         freq_layout = QHBoxLayout()
         freq_label = QLabel("Freq (Hz):")
@@ -139,7 +148,12 @@ class Project1Tab(QWidget):
             }
         """)
         
-        
+        naming_layout.addWidget(naming_label)
+        naming_layout.addWidget(self.naming_input)
+        naming_layout.addStretch()
+        nameing_group.setLayout(naming_layout)
+        left_layout.addWidget(nameing_group)
+
         freq_layout.addWidget(freq_label)
         freq_layout.addWidget(self.freq_input)
         freq_layout.addWidget(self.up_btn)
@@ -226,6 +240,7 @@ class Project1Tab(QWidget):
             show_cam_getter=self.show_cam_checkbox.isChecked,
             save_video_getter=self.save_video_checkbox.isChecked,
             enable_tracking_getter=self.enable_tracking.isChecked,
+            filename_getter=self.naming_input.text,
             frame_callback=None,  # set later by MainWorker
         )
         session = core_tracking.TrackingSession(

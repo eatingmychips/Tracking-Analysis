@@ -26,8 +26,8 @@ class MainWorker(QThread):
         self.session.run()
         self.finished.emit()
 
-    def stop(self, stop_loop: bool = True):
-        self.session.stop(stop_loop)  # Implement stop logic in TrackingSession
+    def stop(self, stop_loop: bool = True, save: bool = True):
+        self.session.stop(stop_loop, save)  # Implement stop logic in TrackingSession
         self._running = False
 
 class Project1Tab(QWidget):
@@ -178,10 +178,10 @@ class Project1Tab(QWidget):
             if self.worker:
                 if self.show_cam_checkbox.isChecked():
                     # Preview ON: save data but keep camera running
-                    self.worker.stop(stop_loop=False)
+                    self.worker.stop(stop_loop=False, save = True)
                 else:
                     # Preview OFF: save data and stop session
-                    self.worker.stop(stop_loop=True)
+                    self.worker.stop(stop_loop=True, save = True)
                     self.worker.wait()
                     self.worker = None
                     if self.serial_obj is not None and self.serial_obj.is_open:
@@ -219,10 +219,10 @@ class Project1Tab(QWidget):
                 # If you require a folder even for preview, you can optionally check here
                 self.start_session()
         else:
-            self.camera_label.hide()
+            self.camera_label.clear()
             # If not recording, and user turns off preview, stop session entirely
             if not self.recording and self.worker:
-                self.worker.stop()
+                self.worker.stop(stop_loop=True, save = False)
                 self.worker.wait()
                 self.worker = None
                 if self.serial_obj is not None and self.serial_obj.is_open:

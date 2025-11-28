@@ -9,5 +9,5 @@ if __name__ == "__main__":
     sys.exit(app.exec())
 
 
-#TODO: Synchronise csv and .avi filenaming 
+# No Signal usage, accessing from seperate thread. 
 

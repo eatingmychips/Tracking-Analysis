@@ -9,6 +9,8 @@ import pandas as pd
 import numpy as np 
 import serial
 import random
+import pypylon
+from pypylon import pylon
 import cv2 
 
 class MainWorker(QThread):
@@ -34,6 +36,7 @@ class Project1Tab(QWidget):
     save_video_changed = pyqtSignal(bool)
     tracking_changed = pyqtSignal(bool)
     frequency_changed = pyqtSignal(int)
+    directory_changed = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -165,16 +168,14 @@ class Project1Tab(QWidget):
         freq_group.setLayout(freq_layout)
         left_layout.addWidget(freq_group)
 
-        #TODO: CHange toggling 
         self.save_video_checkbox = QCheckBox("Save Video Enabled")
         self.save_video_checkbox.setChecked(False)
-        self.save_video_checkbox.toggled.connect(self.on_toggle_save_video)
+        self.save_video_checkbox.clicked.connect(self.on_toggle_save_video)
         left_layout.addWidget(self.save_video_checkbox, alignment=Qt.AlignmentFlag.AlignLeft)
 
-
-        #TODO: Add Live Tracking Enabled 
         self.enable_tracking = QCheckBox("Enable Live Tracking")
         self.enable_tracking.setChecked(True)
+        self.enable_tracking.clicked.connect(self.on_toggle_tracking)
         left_layout.addWidget(self.enable_tracking, alignment=Qt.AlignmentFlag.AlignLeft)
 
         # Record Button
@@ -197,7 +198,7 @@ class Project1Tab(QWidget):
 
         self.show_cam_checkbox = QCheckBox("Show camera stream")
         self.show_cam_checkbox.setChecked(False)
-        self.show_cam_checkbox.toggled.connect(self.on_toggle_camera_view)
+        self.show_cam_checkbox.clicked.connect(self.on_toggle_camera_view)
         right_layout.addWidget(self.show_cam_checkbox, alignment=Qt.AlignmentFlag.AlignLeft)
 
         right_layout.addStretch()
@@ -221,40 +222,47 @@ class Project1Tab(QWidget):
         directory = dialog.getExistingDirectory()
         if directory:
             self.dir_label.setText(directory)
+            self.directory_changed.emit(directory)
         else: 
             self.dir_label.setText("(No folder Selected)")
 
     def start_session(self):
-        # Build hardware objects only once per session
-        config_file = r"L:\biorobotics\data\Vertical&InvertedClimbing\CameraFiles\ARUCO1200.pfs"
-        self.camera = core_tracking.PylonCamera(config_file)
-        com_port = self.com_port_combo.currentText()
-        self.serial_obj = serial.Serial(com_port, 115200, timeout=0.1)
-        controller = core_tracking.JoystickController(self.serial_obj)
-        aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-        parameters = cv2.aruco.DetectorParameters()
-        detector_params = (aruco_dict, parameters)
+        try:
+            config_file = r"L:\biorobotics\data\Vertical&InvertedClimbing\CameraFiles\ARUCO1200.pfs"
+            self.camera = core_tracking.PylonCamera(config_file)
+            com_port = self.com_port_combo.currentText()
+            self.serial_obj = serial.Serial(com_port, 115200, timeout=0.1)
+            controller = core_tracking.JoystickController(self.serial_obj)
+            aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+            parameters = cv2.aruco.DetectorParameters()
+            detector_params = (aruco_dict, parameters)
 
-        self.pose_data_list = []
+            self.pose_data_list = []
+            self.session = core_tracking.TrackingSession(
+                self.camera,
+                controller,
+                detector_params,
+                self.pose_data_list,
+                "Filename", 
+                r"L:\biorobotics\data"
+            )
 
-        
-        self.session = core_tracking.TrackingSession(
-            self.camera,
-            controller,
-            detector_params,
-            self.pose_data_list,
-            "Filename", 
-            r"L:\biorobotics\data"
-        )
+            self.frequency_changed.connect(controller.set_frequency)
+            self.frequency_changed.emit(int(self.freq_input.text()))
 
-        self.frequency_changed.connect(controller.set_frequency)
-        self.frequency_changed.emit(int(self.freq_input.text()))
+            self.save_video_changed.connect(self.session.set_save_video)
+            self.tracking_changed.connect(self.session.set_save_tracking)
+            self.recording_changed.connect(self.session.set_recording)
+            self.show_cam_changed.connect(self.session.set_show_cam)
 
-        self.recording_changed.connect(self.session.set_recording)
-        self.show_cam_changed.connect(self.session.set_show_cam)
-        self.worker = MainWorker(self.session)
-        self.session.frame_ready.connect(self.update_camera_frame)
-        self.worker.start()
+            self.worker = MainWorker(self.session)
+            self.session.frame_ready.connect(self.update_camera_frame)
+            self.worker.start()
+
+        except Exception as e: 
+            print("Error in start_session:", repr(e))
+            QMessageBox.critical(self, "Error", f"Error in start_session:\n{e}")
+
 
 
     def toggle_recording(self):
@@ -324,14 +332,15 @@ class Project1Tab(QWidget):
         self.freq_input.setText(str(freq))
         
     def on_toggle_camera_view(self, checked: bool):
-        self.show_cam_changed.emit(checked)
         if checked:
             self.camera_label.show()
             # If no session yet, start a preview-only session
             if self.worker is None:
-                # If you require a folder even for preview, you can optionally check here
                 self.start_session()
+                self.show_cam_changed.emit(checked)
+
         else:
+            self.show_cam_changed.emit(checked)
             self.camera_label.clear()
             # If not recording, and user turns off preview, stop session entirely
             if not self.recording and self.worker:
@@ -342,6 +351,11 @@ class Project1Tab(QWidget):
                     self.serial_obj.close()
                 self.serial_obj = None
 
+    def on_toggle_save_video(self, checked: bool): 
+        self.save_video_changed.emit(checked)
+
+    def on_toggle_tracking(self, checked: bool): 
+        self.tracking_changed.emit(checked)
     
     def update_camera_frame(self, img):
         # img: OpenCV BGR numpy array

@@ -1,6 +1,8 @@
 # project1/core.py
-import cv2
+import pypylon
 from pypylon import pylon
+import cv2
+import sys
 import numpy as np
 import pandas as pd
 import serial
@@ -135,12 +137,10 @@ class TrackingSession(QObject):
         self.camera.start()
         try:
             while self.should_run:
-                print("We are here")
                 img = self.camera.get_frame()
                 insect_pose = [None, None, None]
                 data = self.controller.process_input()
                 if img is not None:
-                    #TODO: Add file saving for Video Only 
                     if self.recording:    
                         if self.save_tracking:    
                             corners, ids, rejected = self.detector.detectMarkers(img)    
@@ -167,8 +167,9 @@ class TrackingSession(QObject):
                             self.video_writer.write(img)
                             
                         self.pose_data_list.append((time.time(), insect_pose, data))
-
-                    if self.show_cam and img is not None: 
+                        
+                    print("Show cam", self.show_cam)
+                    if self.show_cam: 
                         self.frame_ready.emit(img)
                         
         finally:
@@ -203,6 +204,7 @@ class TrackingSession(QObject):
         self.recording = value
 
     def set_show_cam(self, value: bool): 
+        print(value)
         self.show_cam = value
     
     def set_save_video(self, value: bool): 

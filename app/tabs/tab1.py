@@ -37,6 +37,7 @@ class Project1Tab(QWidget):
     tracking_changed = pyqtSignal(bool)
     frequency_changed = pyqtSignal(int)
     directory_changed = pyqtSignal(str)
+    filename_changed = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -223,6 +224,7 @@ class Project1Tab(QWidget):
         if directory:
             self.dir_label.setText(directory)
             self.directory_changed.emit(directory)
+            
         else: 
             self.dir_label.setText("(No folder Selected)")
 
@@ -242,18 +244,28 @@ class Project1Tab(QWidget):
                 self.camera,
                 controller,
                 detector_params,
-                self.pose_data_list,
-                "Filename", 
-                r"L:\biorobotics\data"
+                self.pose_data_list
             )
 
             self.frequency_changed.connect(controller.set_frequency)
             self.frequency_changed.emit(int(self.freq_input.text()))
 
             self.save_video_changed.connect(self.session.set_save_video)
+            self.save_video_changed.emit(self.save_video_checkbox.isChecked())
+
             self.tracking_changed.connect(self.session.set_save_tracking)
+            self.tracking_changed.emit(self.enable_tracking.isChecked())
+
             self.recording_changed.connect(self.session.set_recording)
+
             self.show_cam_changed.connect(self.session.set_show_cam)
+            self.show_cam_changed.emit(self.show_cam_checkbox.isChecked())
+
+            self.filename_changed.connect(self.session.set_filename)
+            self.filename_changed.emit(self.naming_input.text())
+
+            self.directory_changed.connect(self.session.set_directory)
+            self.directory_changed.emit(self.dir_label.text())
 
             self.worker = MainWorker(self.session)
             self.session.frame_ready.connect(self.update_camera_frame)

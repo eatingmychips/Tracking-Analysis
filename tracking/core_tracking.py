@@ -113,7 +113,7 @@ class JoystickController:
 
 class TrackingSession(QObject):
     frame_ready = pyqtSignal(object)  # img (numpy array)
-    def __init__(self, camera, controller, detector_params, pose_data_list, filename, directory):
+    def __init__(self, camera, controller, detector_params, pose_data_list):
         super().__init__()
         self.camera = camera
         self.controller = controller
@@ -127,8 +127,8 @@ class TrackingSession(QObject):
         self.save_video = False 
         self.save_tracking = True
 
-        self.filename = filename
-        self.directory = directory 
+        self.filename = ""
+        self.directory = ""
 
 
     def run(self):
@@ -195,6 +195,7 @@ class TrackingSession(QObject):
                 )
                 df.to_csv(output_filename, index=False)
                 print(f"Data saved to {self.directory}")
+
             self.pose_data_list = []
         else: 
             return 
@@ -204,7 +205,6 @@ class TrackingSession(QObject):
         self.recording = value
 
     def set_show_cam(self, value: bool): 
-        print(value)
         self.show_cam = value
     
     def set_save_video(self, value: bool): 
@@ -212,3 +212,9 @@ class TrackingSession(QObject):
 
     def set_save_tracking(self, value: bool): 
         self.save_tracking = value
+
+    def set_filename(self, value: str): 
+        self.filename = value
+
+    def set_directory(self, value: str): 
+        self.directory = value

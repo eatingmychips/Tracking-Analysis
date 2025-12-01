@@ -12,16 +12,7 @@ import random
 import pygame 
 from dataclasses import dataclass 
 from typing import Callable, Optional 
-
-@dataclass
-class SessionCallbacks:
-    recording_getter: Callable[[], bool]
-    directory_getter: Callable[[], str]
-    show_cam_getter: Callable[[], bool]
-    save_video_getter: Callable[[], bool]
-    enable_tracking_getter: Callable[[], bool]
-    filename_getter: Callable[[], str]
-    frame_callback: Optional[Callable[[np.ndarray], None]] = None
+from PyQt6.QtCore import QObject, pyqtSignal
 
 
 def get_com_ports():
@@ -72,15 +63,18 @@ class PylonCamera:
         self.camera.Close()
 
 class JoystickController:
-    def __init__(self, frequency_var_getter, serial_obj):
+    def __init__(self, serial_obj):
         pygame.init()
         pygame.joystick.init()
         joysticks = [pygame.joystick.Joystick(x) for x in range(pygame.joystick.get_count())]
         self.joysticks = joysticks
-        self.frequency_var_getter = frequency_var_getter
         self.serial_obj = serial_obj
+        self.frequency = 10
         if joysticks:
             self.previous_button_states = [False] * joysticks[0].get_numbuttons()
+
+    def set_frequency(self, value: int): 
+        self.frequency = value
 
     def process_input(self):
         data = ""
@@ -89,47 +83,51 @@ class JoystickController:
             for button in range(joystick.get_numbuttons()):
                 current_button_state = joystick.get_button(button)
                 if current_button_state and not self.previous_button_states[button]:
-                    if button == 0: # A Button
+                    if button == 0:      # A
                         print("We have pressed button: 'A', stimulating both elytra")
                         side = "Both"
-                        freq = int(self.frequency_var_getter())
-                        message = get_command(dur, freq, side) + '\n'
-                        self.serial_obj.write(message.encode('utf-8'))
-                        data = (f"Both, {freq}")
-
-                    elif button == 3: # Y Button
+                    elif button == 3:    # Y
                         print("We have pressed button: 'Y', stimulating right antenna")
                         side = "Right"
-                        freq = int(self.frequency_var_getter())
-                        message = get_command(dur, freq, side) + '\n'
-                        self.serial_obj.write(message.encode('utf-8'))
-                        data = (f"Right, {freq}")
-
-                    elif button == 2:  # X Button
+                    elif button == 2:    # X
                         print("We have pressed button: 'X', stimulating left antenna")
                         side = "Left"
-                        freq = int(self.frequency_var_getter())
+                    elif button == 7:
+                        print("Start button pressed: Random Frequency")
+                        # (optional: GUI can randomize, then emit new freq)
+                        side = None
+
+                    if side is not None:
+                        freq = int(self.frequency)
                         message = get_command(dur, freq, side) + '\n'
                         self.serial_obj.write(message.encode('utf-8'))
-                        data = (f"Left, {freq}")
-                    
-                    elif button == 7: 
-                        print("Start button pressed: Random Frequency")
-                        # rand_freq()
+                        data = f"{side}, {freq}"
+
+
                 self.previous_button_states[button] = current_button_state
 
 
         return data
 
-class TrackingSession:
-    def __init__(self, camera, controller, detector_params, pose_data_list, callbacks: SessionCallbacks):
+class TrackingSession(QObject):
+    frame_ready = pyqtSignal(object)  # img (numpy array)
+    def __init__(self, camera, controller, detector_params, pose_data_list, filename, directory):
+        super().__init__()
         self.camera = camera
         self.controller = controller
         self.detector = cv2.aruco.ArucoDetector(*detector_params)
         self.should_run = True
         self.pose_data_list = pose_data_list 
-        self.callbacks = callbacks
         self.video_writer = None
+
+        self.recording = False
+        self.show_cam = False
+        self.save_video = False 
+        self.save_tracking = True
+
+        self.filename = filename
+        self.directory = directory 
+
 
     def run(self):
         self.video_writer = None
@@ -137,13 +135,14 @@ class TrackingSession:
         self.camera.start()
         try:
             while self.should_run:
+                print("We are here")
                 img = self.camera.get_frame()
                 insect_pose = [None, None, None]
                 data = self.controller.process_input()
                 if img is not None:
                     #TODO: Add file saving for Video Only 
-                    if self.callbacks.recording_getter():    
-                        if self.callbacks.enable_tracking_getter():    
+                    if self.recording:    
+                        if self.save_tracking:    
                             corners, ids, rejected = self.detector.detectMarkers(img)    
                             if ids is not None and 1 in ids:
                                 idx = list(ids.flatten()).index(1)
@@ -153,15 +152,14 @@ class TrackingSession:
                                 angle = np.arctan2(dy, dx)
                                 insect_pose = [center[0], center[1], angle]
 
-                        if self.callbacks.save_video_getter():
+                        if self.save_video:
                             if self.video_writer is None:
                                 h, w, _ = img.shape
                                 fourcc = cv2.VideoWriter_fourcc(*'XVID')
-                                directory = self.callbacks.directory_getter()
                                 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                                 video_filename = os.path.join(
-                                    directory,
-                                    f"{self.callbacks.filename_getter()}_{timestamp}.avi"
+                                    self.directory,
+                                    f"{self.filename}_{timestamp}.avi"
                                 )
                                 self.video_writer = cv2.VideoWriter(
                                     video_filename, fourcc, 102, (w, h)
@@ -170,8 +168,8 @@ class TrackingSession:
                             
                         self.pose_data_list.append((time.time(), insect_pose, data))
 
-                    if self.callbacks.show_cam_getter and self.callbacks.show_cam_getter(): 
-                        self.callbacks.frame_callback(img)
+                    if self.show_cam and img is not None: 
+                        self.frame_ready.emit(img)
                         
         finally:
             self.camera.stop()
@@ -191,11 +189,24 @@ class TrackingSession:
                                 columns=['time', 'pose', 'arduino_data'])
                 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                 output_filename = os.path.join(
-                    self.callbacks.directory_getter(),
-                    f"{self.callbacks.filename_getter()}_pose_{timestamp}.csv"
+                    self.directory,
+                    f"{self.filename}_pose_{timestamp}.csv"
                 )
                 df.to_csv(output_filename, index=False)
-                print(f"Data saved to {self.callbacks.directory_getter()}")
+                print(f"Data saved to {self.directory}")
             self.pose_data_list = []
         else: 
             return 
+        
+    
+    def set_recording(self, value: bool): 
+        self.recording = value
+
+    def set_show_cam(self, value: bool): 
+        self.show_cam = value
+    
+    def set_save_video(self, value: bool): 
+        self.save_video = value
+
+    def set_save_tracking(self, value: bool): 
+        self.save_tracking = value

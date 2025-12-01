@@ -9,5 +9,4 @@ if __name__ == "__main__":
     sys.exit(app.exec())
 
 
-# No Signal usage, accessing from seperate thread. 
 

@@ -3,7 +3,6 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QFileDial
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QSize
 from PyQt6.QtGui import QImage, QPixmap, QIcon
 from tracking import core_tracking
-from tracking.core_tracking import SessionCallbacks
 import os 
 from datetime import datetime 
 import pandas as pd 
@@ -13,15 +12,12 @@ import random
 import cv2 
 
 class MainWorker(QThread):
-    pose_data_updated = pyqtSignal(list)
     finished = pyqtSignal()
-    frame_ready = pyqtSignal(object)
      
     def __init__(self, session):
         super().__init__()
         self.session = session
         self._running = True
-        self.session.callbacks.frame_callback = self.frame_ready.emit
 
     def run(self):
         # Run session in this thread; implement a stop condition inside your session
@@ -33,6 +29,12 @@ class MainWorker(QThread):
         self._running = False
 
 class Project1Tab(QWidget):
+    recording_changed = pyqtSignal(bool)
+    show_cam_changed = pyqtSignal(bool)
+    save_video_changed = pyqtSignal(bool)
+    tracking_changed = pyqtSignal(bool)
+    frequency_changed = pyqtSignal(int)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.pose_data_list = []
@@ -163,9 +165,10 @@ class Project1Tab(QWidget):
         freq_group.setLayout(freq_layout)
         left_layout.addWidget(freq_group)
 
+        #TODO: CHange toggling 
         self.save_video_checkbox = QCheckBox("Save Video Enabled")
         self.save_video_checkbox.setChecked(False)
-        # self.save_video_checkbox.toggled.connect(self.on_toggle_save_video)
+        self.save_video_checkbox.toggled.connect(self.on_toggle_save_video)
         left_layout.addWidget(self.save_video_checkbox, alignment=Qt.AlignmentFlag.AlignLeft)
 
 
@@ -227,38 +230,37 @@ class Project1Tab(QWidget):
         self.camera = core_tracking.PylonCamera(config_file)
         com_port = self.com_port_combo.currentText()
         self.serial_obj = serial.Serial(com_port, 115200, timeout=0.1)
-        controller = core_tracking.JoystickController(self.freq_input.text, self.serial_obj)
+        controller = core_tracking.JoystickController(self.serial_obj)
         aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
         parameters = cv2.aruco.DetectorParameters()
         detector_params = (aruco_dict, parameters)
 
         self.pose_data_list = []
 
-        callbacks = SessionCallbacks(
-            recording_getter=self.get_recording_state,
-            directory_getter=self.dir_label.text,
-            show_cam_getter=self.show_cam_checkbox.isChecked,
-            save_video_getter=self.save_video_checkbox.isChecked,
-            enable_tracking_getter=self.enable_tracking.isChecked,
-            filename_getter=self.naming_input.text,
-            frame_callback=None,  # set later by MainWorker
-        )
-        session = core_tracking.TrackingSession(
+        
+        self.session = core_tracking.TrackingSession(
             self.camera,
             controller,
             detector_params,
             self.pose_data_list,
-            callbacks
+            "Filename", 
+            r"L:\biorobotics\data"
         )
 
-        self.worker = MainWorker(session)
-        self.worker.frame_ready.connect(self.update_camera_frame)
+        self.frequency_changed.connect(controller.set_frequency)
+        self.frequency_changed.emit(int(self.freq_input.text()))
+
+        self.recording_changed.connect(self.session.set_recording)
+        self.show_cam_changed.connect(self.session.set_show_cam)
+        self.worker = MainWorker(self.session)
+        self.session.frame_ready.connect(self.update_camera_frame)
         self.worker.start()
 
 
     def toggle_recording(self):
         # STOP RECORDING
         if self.recording:
+            self.recording_changed.emit(False)
             self.recording = False
             self.record_btn.setText("Start Recording")
             self.record_btn.setStyleSheet(
@@ -296,6 +298,7 @@ class Project1Tab(QWidget):
         self.save_video_checkbox.setEnabled(False)
         self.pose_data_list = []
         self.recording = True
+        self.recording_changed.emit(True)
         self.record_btn.setText("Stop Recording")
         self.record_btn.setStyleSheet("background-color: red; color: white;")
 
@@ -321,6 +324,7 @@ class Project1Tab(QWidget):
         self.freq_input.setText(str(freq))
         
     def on_toggle_camera_view(self, checked: bool):
+        self.show_cam_changed.emit(checked)
         if checked:
             self.camera_label.show()
             # If no session yet, start a preview-only session

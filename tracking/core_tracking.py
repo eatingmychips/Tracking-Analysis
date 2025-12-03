@@ -167,8 +167,7 @@ class TrackingSession(QObject):
                             self.video_writer.write(img)
                             
                         self.pose_data_list.append((time.time(), insect_pose, data))
-                        
-                    print("Show cam", self.show_cam)
+                    
                     if self.show_cam: 
                         self.frame_ready.emit(img)
                         

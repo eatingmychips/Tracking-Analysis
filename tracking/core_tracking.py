@@ -64,8 +64,10 @@ class PylonCamera:
         self.camera.StopGrabbing()
         self.camera.Close()
 
-class JoystickController:
+class JoystickController(QObject):
+    random_button = pyqtSignal(bool)
     def __init__(self, serial_obj):
+        super().__init__()
         pygame.init()
         pygame.joystick.init()
         joysticks = [pygame.joystick.Joystick(x) for x in range(pygame.joystick.get_count())]
@@ -96,8 +98,8 @@ class JoystickController:
                         side = "Left"
                     elif button == 7:
                         print("Start button pressed: Random Frequency")
-                        # (optional: GUI can randomize, then emit new freq)
                         side = None
+                        self.random_button.emit(True)
 
                     if side is not None:
                         freq = int(self.frequency)
@@ -129,6 +131,10 @@ class TrackingSession(QObject):
 
         self.filename = ""
         self.directory = ""
+        self.frequency = 10
+
+        self.prev_center = None
+        self.crop_radius = 200
 
 
     def run(self):
@@ -143,14 +149,34 @@ class TrackingSession(QObject):
                 if img is not None:
                     if self.recording:    
                         if self.save_tracking:    
-                            corners, ids, rejected = self.detector.detectMarkers(img)    
+                            if self.prev_center is not None: 
+                                cx, cy = self.prev_center
+                                x0 = max(int(cx - self.crop_radius), 0)
+                                y0 = max(int(cy - self.crop_radius), 0)
+                                x1 = min(int(cx + self.crop_radius), img.shape[1])
+                                y1 = min(int(cy + self.crop_radius), img.shape[0])
+                                roi = img[y0:y1, x0:x1]
+                                corners, ids, rejected = self.detector.detectMarkers(roi)
+
+                            else: 
+                                x0 = y0 = 0
+                                corners, ids, rejected = self.detector.detectMarkers(img)
+
                             if ids is not None and 1 in ids:
                                 idx = list(ids.flatten()).index(1)
                                 marker_corners = corners[idx][0]
+
+                                # offset ROI back to full image coords
+                                marker_corners[:, 0] += x0
+                                marker_corners[:, 1] += y0
+
                                 center = marker_corners.mean(axis=0)
                                 dx, dy = marker_corners[1] - marker_corners[0]
                                 angle = np.arctan2(dy, dx)
                                 insect_pose = [center[0], center[1], angle]
+
+                                # update prev_center in full-res coords
+                                self.prev_center = (center[0], center[1])
 
                         if self.save_video:
                             if self.video_writer is None:
@@ -162,12 +188,12 @@ class TrackingSession(QObject):
                                     f"{self.filename}_{timestamp}.avi"
                                 )
                                 self.video_writer = cv2.VideoWriter(
-                                    video_filename, fourcc, 102, (w, h)
+                                    video_filename, fourcc, 100, (w, h)
                                 )
                             self.video_writer.write(img)
                             
                         self.pose_data_list.append((time.time(), insect_pose, data))
-                    
+                        
                     if self.show_cam: 
                         self.frame_ready.emit(img)
                         

@@ -230,11 +230,11 @@ class Project1Tab(QWidget):
 
     def start_session(self):
         try:
-            config_file = r"L:\biorobotics\data\Vertical&InvertedClimbing\CameraFiles\ARUCO1200.pfs"
+            config_file = r"G:\biorobotics\data\Vertical&InvertedClimbing\CameraFiles\ARUCO1200.pfs"
             self.camera = core_tracking.PylonCamera(config_file)
             com_port = self.com_port_combo.currentText()
             self.serial_obj = serial.Serial(com_port, 115200, timeout=0.1)
-            controller = core_tracking.JoystickController(self.serial_obj)
+            self.controller = core_tracking.JoystickController(self.serial_obj)
             aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
             parameters = cv2.aruco.DetectorParameters()
             detector_params = (aruco_dict, parameters)
@@ -242,12 +242,12 @@ class Project1Tab(QWidget):
             self.pose_data_list = []
             self.session = core_tracking.TrackingSession(
                 self.camera,
-                controller,
+                self.controller,
                 detector_params,
                 self.pose_data_list
             )
 
-            self.frequency_changed.connect(controller.set_frequency)
+            self.frequency_changed.connect(self.controller.set_frequency)
             self.frequency_changed.emit(int(self.freq_input.text()))
 
             self.save_video_changed.connect(self.session.set_save_video)
@@ -269,6 +269,7 @@ class Project1Tab(QWidget):
 
             self.worker = MainWorker(self.session)
             self.session.frame_ready.connect(self.update_camera_frame)
+            self.controller.random_button.connect(self.rand_freq)
             self.worker.start()
 
         except Exception as e: 
@@ -325,10 +326,12 @@ class Project1Tab(QWidget):
     def get_recording_state(self): 
         return self.recording
     
-    def rand_freq(self): 
+    def rand_freq(self, yes: bool): 
         possible_freqs = [10, 20, 30, 40, 50]
-        rand_freq = str(random.choice(possible_freqs))
-        self.freq_input.setText(rand_freq)
+        rand_freq = random.choice(possible_freqs)
+        rand_freq_str = str(rand_freq)
+        self.freq_input.setText(rand_freq_str)
+        self.frequency_changed.emit(rand_freq)
 
     def up_down_freq(self, up: bool): 
         freq = int(self.freq_input.text())
@@ -342,6 +345,7 @@ class Project1Tab(QWidget):
                 freq = 50
         
         self.freq_input.setText(str(freq))
+        self.frequency_changed.emit(freq)
         
     def on_toggle_camera_view(self, checked: bool):
         if checked:

@@ -157,7 +157,6 @@ class TrackingSession(QObject):
                                 y1 = min(int(cy + self.crop_radius), img.shape[0])
                                 roi = img[y0:y1, x0:x1]
                                 corners, ids, rejected = self.detector.detectMarkers(roi)
-
                             else: 
                                 x0 = y0 = 0
                                 corners, ids, rejected = self.detector.detectMarkers(img)
@@ -177,7 +176,9 @@ class TrackingSession(QObject):
 
                                 # update prev_center in full-res coords
                                 self.prev_center = (center[0], center[1])
-
+                            else: 
+                                self.prev_center = None
+                                
                         if self.save_video:
                             if self.video_writer is None:
                                 h, w, _ = img.shape

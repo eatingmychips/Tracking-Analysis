@@ -180,8 +180,8 @@ class TrackingSession(QObject):
                                 center = marker_corners.mean(axis=0)
                                 dx, dy = marker_corners[1] - marker_corners[0]
                                 angle = np.arctan2(dy, dx)
-                                insect_pose = [center[0], center[1], angle]
-
+                                insect_pose = [float(center[0]), float(center[1]), float(angle)]
+                                    
                                 # update prev_center in full-res coords
                                 self.prev_center = (center[0], center[1])
                             else: 

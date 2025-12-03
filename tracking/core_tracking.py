@@ -32,7 +32,7 @@ def get_command(dur, freq, selection):
     dur_hex = hex(int(dur/10))[2:].zfill(2)
     freq_hex = hex(int(freq))[2:].zfill(2)
     prefix = "B1"
-    cmds = {"Both": "E0", "Left": "A0", "Right": "B0"}
+    cmds = {"Both": "E0", "Left": "A0", "Right": "B0", "LeftEly": "C0", "RightEly": "D0"}
     return prefix + cmds[selection] + dur_hex + freq_hex
 
 
@@ -87,20 +87,28 @@ class JoystickController(QObject):
             for button in range(joystick.get_numbuttons()):
                 current_button_state = joystick.get_button(button)
                 if current_button_state and not self.previous_button_states[button]:
+                    print(button)
                     if button == 0:      # A
-                        print("We have pressed button: 'A', stimulating both elytra")
+                        print("Stimulating Both elytra")
                         side = "Both"
                     elif button == 3:    # Y
-                        print("We have pressed button: 'Y', stimulating right antenna")
+                        print("Stimulating Right antenna")
                         side = "Right"
                     elif button == 2:    # X
-                        print("We have pressed button: 'X', stimulating left antenna")
+                        print("Stimulating Left antenna")
                         side = "Left"
+                    elif button == 4:    # Left Trigger
+                        print("Stimulating Left Elytra")
+                        side = "LeftEly"
+                    elif button == 5:    # Right Trigger
+                        print("Stimulation Right Elytra")
+                        side = "RightEly"
                     elif button == 7:
                         print("Start button pressed: Random Frequency")
                         side = None
                         self.random_button.emit(True)
-
+                    else: 
+                        side = None
                     if side is not None:
                         freq = int(self.frequency)
                         message = get_command(dur, freq, side) + '\n'

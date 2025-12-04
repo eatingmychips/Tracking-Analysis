@@ -102,17 +102,33 @@ class Project2Tab(QWidget):
         left_layout.addWidget(checkbox_group)     
         left_layout.addWidget(self.run_analysis_btn, alignment=Qt.AlignmentFlag.AlignLeft)   
         left_layout.addStretch()
-        # END LEFT COLUMN 
+        ### END LEFT COLUMN ###
 
 
-        # RIGHT COLUMN (video + checkbox)
+        ### RIGHT COLUMN (Figures) ### 
         right_layout = QVBoxLayout()
         right_layout.setSpacing(8)
 
+        ### Plotting Canvas ###
         self.figure = Figure(figsize = (12, 8))
         self.canvas = FigureCanvas(self.figure)
         right_layout.addWidget(self.canvas)
+        
+        
+        ### Left / Right Arrows ###
+        self.plots = []
+        self.current_plot_index = 0
+        nav_layout = QHBoxLayout()
+        self.prev_btn = QPushButton("<")
+        self.next_btn = QPushButton(">")
+        self.prev_btn.clicked.connect(self.show_prev_plot)
+        self.next_btn.clicked.connect(self.show_next_plot)
+        nav_layout.addWidget(self.prev_btn)
+        nav_layout.addWidget(self.next_btn)
+        right_layout.addLayout(nav_layout)
 
+
+        ### Adding right / left to root layout
         root_layout.addLayout(left_layout)
         root_layout.addLayout(right_layout)
         self.setLayout(root_layout)
@@ -163,11 +179,72 @@ class Project2Tab(QWidget):
         self.analysis_worker = None
 
 
-    def on_analysis_results(self, results): 
-        data_dict = results["body_angles"]
-        frequencies = [10, 20, 30, 40, 50]
-        self.antenna_time_plot(data_dict, frequencies, "Angular Deviation (degrees)")
+    def on_analysis_results(self, results):
+        self.plots = []
 
+        body_angles = results["body_angles"]
+        angles_max = results["angles_max"]
+        forward_velocity = results.get("forward_velocity")
+        frequencies = [10, 20, 30, 40, 50]
+
+        if self.ant_angle_box.isChecked():
+            self.plots.append(
+                lambda ba=body_angles: self.antenna_time_plot(
+                    ba, frequencies, "Angular Deviation (degrees)"
+                )
+            )
+
+        if self.ant_freq_box.isChecked():
+            self.plots.append(
+                lambda am=angles_max: self.frequency_plot(
+                    am, frequencies, "Angular Deviation (degrees)"
+                )
+            )
+
+        if self.ely_vel_box.isChecked() and forward_velocity is not None:
+            self.plots.append(
+                lambda fv=forward_velocity: self.elytra_time_plot(
+                    fv, frequencies, "Forward Velocity (mm/s)"
+                )
+            )
+
+        if self.ely_freq_box.isChecked() and forward_velocity is not None:
+            self.plots.append(
+                lambda fv=forward_velocity: self.elytra_freq_plot(
+                    fv, frequencies, "Forward Velocity (mm/s)"
+                )
+            )
+
+        if not self.plots:
+            QMessageBox.information(self, "No Plots", "No analyses were selected.")
+            return
+
+        self.current_plot_index = 0
+        self.show_current_plot()
+
+    def show_current_plot(self):
+        if not self.plots:
+            return
+        # call the stored plotting function; each function draws on self.figure
+        plot_fn = self.plots[self.current_plot_index]
+        plot_fn()  # this will call antenna_time_plot / etc.
+
+    def show_next_plot(self):
+        if not self.plots:
+            return
+        self.current_plot_index = (self.current_plot_index + 1) % len(self.plots)
+        self.show_current_plot()
+
+    def show_prev_plot(self):
+        if not self.plots:
+            return
+        self.current_plot_index = (self.current_plot_index - 1) % len(self.plots)
+        self.show_current_plot()
+
+
+
+
+    """ Here will be the plotting functions grabbed from usual analysis code """
     def resample_1d_list(self, original_list, new_len):
         # Remove invalid (non-float) entries
         filtered = [x for x in original_list if isinstance(x, (float, int, np.float32, np.float64))]
@@ -246,12 +323,12 @@ class Project2Tab(QWidget):
 
 
             # Formatting subplot
-            ax.set_title(f'Freq: {freq} Hz', fontsize=18)
+            ax.set_title(f'Freq: {freq} Hz', fontsize=14)
             ax.set_xlim(0, 1.1)
             ax.set_ylim(-45, 45)
-            ax.set_ylabel(title, fontsize=16)
+            ax.set_ylabel(title, fontsize=12)
             if freq == 10:
-                ax.legend(fontsize=14)
+                ax.legend(fontsize=10)
 
             ax.spines['right'].set_visible(False)
             ax.spines['top'].set_visible(False)
@@ -269,5 +346,60 @@ class Project2Tab(QWidget):
                 ax.set_xticks(xtick_positions)
                 ax.set_xticklabels(xtick_labels)
         
+        self.figure.tight_layout(h_pad=0.35)
+        self.canvas.draw_idle()
+
+
+    def frequency_plot(self, data_dict, frequencies, title):
+        self.figure.clear()
+
+        axes = self.figure.subplots()
+
+        # Prepare data for boxplots
+        box_data = []       # Combined data for all frequencies
+        positions = []      # X-axis positions for boxplots
+        colors = []         # Colors for each boxplot
+
+        # Iterate through frequencies and collect data
+        for idx, freq in enumerate(frequencies):
+
+            list1 = data_dict.get(("Right", freq), [])
+            list2 = data_dict.get(("Left", freq), [])
+            if len(list1) > 0:  # Add "Right" data if available
+                box_data.append(list1)
+                positions.append(freq)  # X-axis position corresponds to frequency
+                colors.append("red")  # Color for "Right"
+
+            if len(list2) > 0:  # Add "Left" data if available
+                box_data.append(list2)
+                positions.append(freq)  # X-axis position corresponds to frequency
+                colors.append("green")   # Color for "Left"
+
+        # Plot the boxplots
+        boxplots = axes.boxplot(box_data, positions=positions, patch_artist=True, widths = 3.5)
+        axes.axhline(y = 0, color = 'black', linestyle = '--', linewidth = 2)
+        # Customize boxplot colors
+        for patch, color in zip(boxplots['boxes'], colors):
+            patch.set_facecolor(color)
+
+        # Customize x-axis and labels
+        axes.set_xticks(frequencies)  # Set x-ticks to frequencies
+        axes.set_xticklabels(frequencies, fontsize=14)
+        axes.set_xlabel("Frequency (Hz)", fontsize=16)
+        axes.set_ylabel(title, fontsize=16)
+        axes.set_title("Boxplot by Frequency", fontsize=18)
+
+        # Add a legend for "Right" and "Left"
+        axes.legend(
+            handles=[
+                plt.Line2D([0], [0], color="red", lw=4, label="Right"),
+                plt.Line2D([0], [0], color="green", lw=4, label="Left"),
+            ],
+            title="Side",
+            loc="upper right",
+            fontsize=12,
+        )
+
+
         self.figure.tight_layout(h_pad=0.35)
         self.canvas.draw_idle()

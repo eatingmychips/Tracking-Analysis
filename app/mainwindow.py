@@ -17,8 +17,8 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.tabs)
         
         # Add tabs
-        self.tabs.addTab(Project1Tab(self), "Project 1")
-        self.tabs.addTab(Project2Tab(self), "Project 2")
+        self.tabs.addTab(Project1Tab(self), "Tracking")
+        self.tabs.addTab(Project2Tab(self), "Run Analysis")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

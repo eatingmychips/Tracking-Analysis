@@ -6,6 +6,8 @@ from PyQt6.QtGui import QImage, QPixmap, QIcon
 from analysis import core_analysis
 import time
 
+#Implemenation of tab2 for analysis 
+
 class MainWorker(QThread):
     # Define signals here for updating the GUI from the worker thread if needed
     pose_data_updated = pyqtSignal(list)

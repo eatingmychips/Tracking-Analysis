@@ -104,15 +104,3 @@ def run_analysis(directory):
         "fwd_max": fwd_max
     }
 
-### CALL PLOTTNG FUNCTIONS ###
-
-
-### Call all Plots IF BOX HAS BEEN CHECKED ### 
-antenna_time_plot(body_angles, frequencies, "Angular Deviation (degrees)")
-frequency_plot(angles_max, frequencies, "Angular Deviation (degrees)")
-antenna_trials_plot(body_angles, frequencies, "Angular Deviation (degrees)")
-
-
-elytra_time_plot(forward_velocity, frequencies, "Forward Velocity (mm/s)") 
-frequency_plot_elytra(fwd_max, frequencies, "Forward Velocity (mm / s)")
-elytra_trials_plot(forward_velocity, frequencies, "Forward Velocity (mm/s)")

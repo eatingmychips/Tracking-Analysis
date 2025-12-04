@@ -5,21 +5,38 @@ from PyQt6.QtCore import QThread, pyqtSignal, Qt, QSize, QTimer
 from PyQt6.QtGui import QImage, QPixmap, QIcon
 from analysis import core_analysis
 import time
+from dataclasses import dataclass 
 
-#Implemenation of tab2 for analysis 
 
-class MainWorker(QThread):
-    # Define signals here for updating the GUI from the worker thread if needed
-    pose_data_updated = pyqtSignal(list)
+@dataclass
+class AnalysisOptions: 
+    antenna_time: bool = False 
+    antenna_freq: bool = False 
+    elytra_time: bool = False 
+    elytra_freq: bool = False 
+
+
+class AnalysisWorker(QThread):
     finished = pyqtSignal()
+    error = pyqtSignal(str)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__()
-        # Accept references to parameters, or pass them as arguments
-        # self.params = params
+    def __init__(self, directory, options: AnalysisOptions, parent=None): 
+        super().__init__(parent)
+        self.directory = directory
+        self.options = options
 
-    def run(self):
-        self.session.run()
+    def run(self): 
+        try: 
+            core_analysis.run_analysis(directory = self.directory, 
+                                       run_ant_time = self.options.antenna_time, 
+                                       run_ant_freq = self.options.antenna_freq, 
+                                       run_ely_time = self.options.elytra_time, 
+                                       run_ely_freq = self.options.elytra_freq)
+        except Exception as e: 
+            self.error.emit(str(e))
+
+        finally: 
+            self.finished.emit()
 
 
 class Project2Tab(QWidget):
@@ -112,9 +129,9 @@ class Project2Tab(QWidget):
 
     def choose_directory(self): 
         dialog = QFileDialog(self)
-        directory = dialog.getExistingDirectory()
-        if directory:
-            self.dir_label.setText(directory)
+        self.directory = dialog.getExistingDirectory()
+        if self.directory:
+            self.dir_label.setText(self.directory)
             
         else: 
             self.dir_label.setText("(No folder Selected)")  
@@ -124,12 +141,17 @@ class Project2Tab(QWidget):
         self.run_analysis_btn.setText("Running Analysis")
         self.run_analysis_btn.setStyleSheet("background-color: red; color: white;")
 
-        # After 3 seconds, reset the button
-        QTimer.singleShot(3000, self.reset_run_button)
+        options = AnalysisOptions(
+            antenna_time=self.chk_antenna_time.isChecked(),
+            antenna_trials=self.chk_antenna_trials.isChecked(),
+            elytra_time=self.chk_elytra_time.isChecked(),
+            elytra_trials=self.chk_elytra_trials.isChecked(),
+        )
+        self.analysis_worker = AnalysisWorker(self.direct)
         
     
         
     def reset_run_button(self):
         self.run_analysis_btn.setText("Run Analysis")
         self.run_analysis_btn.setStyleSheet("background-color: #5677fc; color: white;")
-        
+

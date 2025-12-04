@@ -14,7 +14,7 @@ import matplotlib.patches as mpatches
 import math
 import json
 from os import listdir
-
+frequencies = [10, 20, 30, 40, 50]
 ######## Here we import the files necessary for analysis, we also import the representative files for gait plotting ########
 
 def find_csv_filenames( path_to_dir, suffix=".csv" ):
@@ -22,22 +22,11 @@ def find_csv_filenames( path_to_dir, suffix=".csv" ):
     return [ filename for filename in filenames if filename.endswith( suffix ) ]
 
 
-#TODO: Enter your file path here:
-file_path = r"L:\biorobotics\data\Vertical&InvertedClimbing\VerticalClimbingTrials\AllTrialsNew"
+def run_analysis(directory):
+    files = [directory + "\\" + x
+            for x in find_csv_filenames(directory)]
+    
 
-
-
-files = [file_path + "\\" + x
-            for x in find_csv_filenames(file_path)]
-
-
-frequencies = [10, 20, 30, 40, 50]
-
-
-
-def stat_analysis(files):
-    # Declare empty lists to store data (optional if you want to store the results later)
-   
     lateral_velocity = {}
     forward_velocity = {}
     body_angles = {}
@@ -106,16 +95,16 @@ def stat_analysis(files):
     print("Number of Forward Success is: ", elytra_succ_no)
     print(f"Success Rate for Forward is: {(elytra_succ_no / (elytra_succ_no + elytra_fail_no)) * 100}, %")
  
- 
-    return lateral_velocity, forward_velocity, body_angles, angular_velocity
+    lateral_max, fwd_max, angles_max, ang_vel_max = get_max_values(lateral_velocity, forward_velocity, body_angles, angular_velocity)
 
-
-
-
-lateral_velocity, forward_velocity, body_angles, angular_velocity = stat_analysis(files)
+    return {
+        "body_angles": body_angles, 
+        "angles_max": angles_max, 
+        "forward_velocity": forward_velocity, 
+        "fwd_max": fwd_max
+    }
 
 ### CALL PLOTTNG FUNCTIONS ###
-lateral_max, fwd_max, angles_max, ang_vel_max = get_max_values(lateral_velocity, forward_velocity, body_angles, angular_velocity)
 
 
 ### Call all Plots IF BOX HAS BEEN CHECKED ### 

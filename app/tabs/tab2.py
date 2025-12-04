@@ -19,19 +19,17 @@ class AnalysisOptions:
 class AnalysisWorker(QThread):
     finished = pyqtSignal()
     error = pyqtSignal(str)
-
+    results_ready = pyqtSignal(object)
     def __init__(self, directory, options: AnalysisOptions, parent=None): 
         super().__init__(parent)
         self.directory = directory
         self.options = options
+        self.finished.connect()
 
     def run(self): 
         try: 
-            core_analysis.run_analysis(directory = self.directory, 
-                                       run_ant_time = self.options.antenna_time, 
-                                       run_ant_freq = self.options.antenna_freq, 
-                                       run_ely_time = self.options.elytra_time, 
-                                       run_ely_freq = self.options.elytra_freq)
+            results = core_analysis.run_analysis(directory = self.directory)
+            self.results_ready.emit(results)
         except Exception as e: 
             self.error.emit(str(e))
 
@@ -42,7 +40,7 @@ class AnalysisWorker(QThread):
 class Project2Tab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.selected_directory = None
+        self.directory = None
         self.init_ui()
         self.worker = None  # Thread to run main loop
 
@@ -140,18 +138,34 @@ class Project2Tab(QWidget):
     def run_analysis_clicked(self):
         self.run_analysis_btn.setText("Running Analysis")
         self.run_analysis_btn.setStyleSheet("background-color: red; color: white;")
-
         options = AnalysisOptions(
-            antenna_time=self.chk_antenna_time.isChecked(),
-            antenna_trials=self.chk_antenna_trials.isChecked(),
-            elytra_time=self.chk_elytra_time.isChecked(),
-            elytra_trials=self.chk_elytra_trials.isChecked(),
+            antenna_time=self.ant_angle_box.isChecked(),
+            antenna_trials=self.ant_freq_box.isChecked(),
+            elytra_time=self.ely_vel_box.isChecked(),
+            elytra_trials=self.ant_freq_box.isChecked(),
         )
-        self.analysis_worker = AnalysisWorker(self.direct)
-        
+        self.analysis_worker = AnalysisWorker(self.directory, options)
+        self.analysis_worker.results_ready.connect(self.on_analysis_results)
+
+        self.analysis_worker.finished.connect(self.on_analysis_finished)
+        self.analysis_worker.start()
     
         
     def reset_run_button(self):
         self.run_analysis_btn.setText("Run Analysis")
         self.run_analysis_btn.setStyleSheet("background-color: #5677fc; color: white;")
 
+
+    def on_analysis_finished(self): 
+        self.run_analysis_btn.setText("Run Analysis")
+        self.run_analysis_btn.setStyleSheet("background-color: #5677fc; color: white;")
+        self.run_analysis_btn.setEnabled(True)
+        self.analysis_worker = None
+
+
+    def on_analysis_results(self, results): 
+        self.plot_results = results
+        self.update_plot_view
+
+
+    def antenna_time_plot(self, body_angles, frequencies): 

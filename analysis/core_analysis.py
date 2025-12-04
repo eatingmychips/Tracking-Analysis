@@ -66,16 +66,16 @@ def run_analysis(directory):
                     if key not in dict: 
                         dict[key] = []
 
-                if turning_fail(body_angle, key):
-                    turning_fail_no += 1
-                    continue
+                # if turning_fail(body_angle, key):
+                #     turning_fail_no += 1
+                #     continue
 
                 if trial_is_outlier(body_angle, in_line_vel, key): 
                     continue
                 
-                if elytra_fail(in_line_vel, key): 
-                    elytra_fail_no += 1
-                    continue
+                # if elytra_fail(in_line_vel, key): 
+                #     elytra_fail_no += 1
+                #     continue
 
                 lateral_velocity[key].append(transv_vel)
                 forward_velocity[key].append(in_line_vel)
@@ -87,14 +87,6 @@ def run_analysis(directory):
                 elif key[0] == "Right" or key[0] == "Left": 
                     turning_succ_no += 1
 
-    print("Number of Turning Success is: ", turning_succ_no)
-    print("Number of Turning Fail is: ", turning_fail_no)
-    print(f"Success Rate for Turning is: {(turning_succ_no / (turning_succ_no + turning_fail_no)) * 100}, %")
-
-    print("Number of Forward Failures is: ", elytra_fail_no)
-    print("Number of Forward Success is: ", elytra_succ_no)
-    print(f"Success Rate for Forward is: {(elytra_succ_no / (elytra_succ_no + elytra_fail_no)) * 100}, %")
- 
     lateral_max, fwd_max, angles_max, ang_vel_max = get_max_values(lateral_velocity, forward_velocity, body_angles, angular_velocity)
 
     return {

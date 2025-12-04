@@ -184,17 +184,18 @@ class Project2Tab(QWidget):
 
         body_angles = results["body_angles"]
         angles_max = results["angles_max"]
-        forward_velocity = results.get("forward_velocity")
+        forward_velocity = results["forward_velocity"]
+        fwd_max = results["fwd_max"]
         frequencies = [10, 20, 30, 40, 50]
 
-        if self.ant_angle_box.isChecked():
+        if self.ant_angle_box.isChecked() and body_angles is not None:
             self.plots.append(
                 lambda ba=body_angles: self.antenna_time_plot(
                     ba, frequencies, "Angular Deviation (degrees)"
                 )
             )
 
-        if self.ant_freq_box.isChecked():
+        if self.ant_freq_box.isChecked() and angles_max is not None:
             self.plots.append(
                 lambda am=angles_max: self.frequency_plot(
                     am, frequencies, "Angular Deviation (degrees)"
@@ -208,10 +209,10 @@ class Project2Tab(QWidget):
                 )
             )
 
-        if self.ely_freq_box.isChecked() and forward_velocity is not None:
+        if self.ely_freq_box.isChecked() and fwd_max is not None:
             self.plots.append(
-                lambda fv=forward_velocity: self.elytra_freq_plot(
-                    fv, frequencies, "Forward Velocity (mm/s)"
+                lambda fm=fwd_max: self.frequency_plot_elytra(
+                    fm, frequencies, "Forward Velocity (mm/s)"
                 )
             )
 
@@ -293,13 +294,13 @@ class Project2Tab(QWidget):
 
             if len(list1) < 1 and len(list2) < 1:
                 # If no data at all for this frequency, just create empty plot
-                ax.set_title(f'Freq: {freq} Hz (No Data)', fontsize=18)
+                ax.set_title(f'Freq: {freq} Hz (No Data)', fontsize=10)
                 ax.set_xlim(0, 1.15)
-                ax.set_ylabel(title, fontsize=16)
+                ax.set_ylabel(title, fontsize=8)
                 ax.spines['right'].set_visible(False)
                 ax.spines['top'].set_visible(False)
                 continue
-        
+
             # Only process and plot if data exists
             if len(list1) > 0:
                 max_len1, medians1, lower_quartiles1, upper_quartiles1 = process_list(list1)
@@ -323,12 +324,12 @@ class Project2Tab(QWidget):
 
 
             # Formatting subplot
-            ax.set_title(f'Freq: {freq} Hz', fontsize=14)
+            ax.set_title(f'Freq: {freq} Hz', fontsize=10)
             ax.set_xlim(0, 1.1)
             ax.set_ylim(-45, 45)
-            ax.set_ylabel(title, fontsize=12)
+            ax.set_ylabel(title, fontsize=8)
             if freq == 10:
-                ax.legend(fontsize=10)
+                ax.legend(fontsize=8)
 
             ax.spines['right'].set_visible(False)
             ax.spines['top'].set_visible(False)
@@ -339,7 +340,7 @@ class Project2Tab(QWidget):
         # Set x-label only to bottom row plots
         for i in range(len(axes_flat)):
             if i >= len(axes_flat) - 4:
-                axes_flat[i].set_xlabel('Time (s)', fontsize=20)
+                axes_flat[i].set_xlabel('Time (s)', fontsize=8)
                             # Set custom x-ticks and labels for this subplot
                 xtick_positions = np.arange(0, 1.05, 0.2)  # Tick positions every 0.2 seconds
                 xtick_labels = [f"{tick:.1f}" for tick in xtick_positions]  # Labels as strings
@@ -384,10 +385,10 @@ class Project2Tab(QWidget):
 
         # Customize x-axis and labels
         axes.set_xticks(frequencies)  # Set x-ticks to frequencies
-        axes.set_xticklabels(frequencies, fontsize=14)
-        axes.set_xlabel("Frequency (Hz)", fontsize=16)
-        axes.set_ylabel(title, fontsize=16)
-        axes.set_title("Boxplot by Frequency", fontsize=18)
+        axes.set_xticklabels(frequencies, fontsize=8)
+        axes.set_xlabel("Frequency (Hz)", fontsize=8)
+        axes.set_ylabel(title, fontsize=8)
+        axes.set_title("Boxplot by Frequency", fontsize=10)
 
         # Add a legend for "Right" and "Left"
         axes.legend(
@@ -397,9 +398,135 @@ class Project2Tab(QWidget):
             ],
             title="Side",
             loc="upper right",
-            fontsize=12,
+            fontsize=8,
         )
 
+
+        self.figure.tight_layout(h_pad=0.35)
+        self.canvas.draw_idle()
+
+    def elytra_time_plot(self, data_dict, frequencies, title):
+
+        self.figure.clear()
+
+        # create 2x3 grid of subplots on the existing figure
+        axes = self.figure.subplots(2, 3)
+        axes_flat = axes.flatten()
+
+        def process_list(data):
+                data = np.array(data, dtype=object)
+                max_len = max(len(sublist) for sublist in data)
+
+                resampled_data = np.array([
+                self.resample_1d_list(sublist, max_len) for sublist in data
+                    ], dtype=float)
+                means = np.nanmean(resampled_data, axis=0)
+                stds = np.nanstd(resampled_data, axis=0)
+                lower = means - stds     # One std dev below the mean
+                upper = means + stds     # One std dev above the mean
+                return max_len, means, lower, upper
+
+        for idx, freq in enumerate(frequencies):
+            ax = axes_flat[idx]
+
+            
+            # Use .get() with default empty list if key not found
+            list1 = data_dict.get(("Both", freq), [])
+
+            if len(list1) < 1:
+                # If no data at all for this frequency, just create empty plot
+                ax.set_title(f'Freq: {freq} Hz (No Data)', fontsize=10)
+                ax.set_xlim(0, 1.05)
+                ax.set_ylabel('Lateral velocity\n(mm/s)', fontsize=8)
+                ax.spines['right'].set_visible(False)
+                ax.spines['top'].set_visible(False)
+                continue
+
+            if len(list1) > 0: 
+                max_len1, medians1, lower_quartiles1, upper_quartiles1 = process_list(list1)
+
+                x = np.linspace(0, 1.15, max_len1)
+                mask = (x >= 0.1) & (x <= 0.6)
+
+                # Right stimulation plot
+                ax.fill_between(x[:len(medians1)], lower_quartiles1, upper_quartiles1,
+                                color='lightgrey', alpha=0.3)
+                ax.plot(x[:len(medians1)], medians1, color='black', linewidth=2)
+                ax.fill_between(x[:len(medians1)][mask], lower_quartiles1[mask], upper_quartiles1[mask],
+                                color='lightcoral', alpha=0.3)
+                ax.plot(x[:len(medians1)][mask], medians1[mask],
+                        color='red', linewidth=2, label='Both Elytra Stimulation')
+
+            # Formatting subplot
+            ax.set_title(f'Freq: {freq} Hz', fontsize=10)
+            ax.set_xlim(0, 1.05)
+            ax.set_ylabel(title, fontsize=8)
+            if freq == 10:
+                ax.legend(fontsize=8)
+            
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+
+        if len(frequencies) < len(axes_flat):
+            self.figure.delaxes(axes_flat[-1])
+
+        # Set x-label only to bottom row plots
+        for i in range(len(axes_flat)):
+            if i >= len(axes_flat) - 4:
+                axes_flat[i].set_xlabel('Time (s)', fontsize=8)
+                            # Set custom x-ticks and labels for this subplot
+                xtick_positions = np.arange(0, 1.05, 0.2)  # Tick positions every 0.2 seconds
+                xtick_labels = [f"{tick:.1f}" for tick in xtick_positions]  # Labels as strings
+                ax.set_xticks(xtick_positions)
+                ax.set_xticklabels(xtick_labels)
+
+        self.figure.tight_layout(h_pad=0.35)
+        self.canvas.draw_idle()
+
+
+    
+    def frequency_plot_elytra(self, data_dict, frequencies, title):
+        self.figure.clear()
+
+        ax = self.figure.subplots()
+
+        box_data = []
+        positions = []
+        colors = []
+
+        for freq in frequencies:
+            list1 = data_dict.get(("Both", freq), [])
+            if len(list1) > 0:
+                box_data.append(list1)
+                positions.append(freq)
+                colors.append("grey")
+
+        # Explicitly handle empty data scenario
+        if len(box_data) == 0:
+            return
+
+        # Plot boxplots
+        boxplots = ax.boxplot(box_data, positions=positions, patch_artist=True, widths=5)
+
+        # Customize colors
+        for patch, color in zip(boxplots['boxes'], colors):
+            patch.set_facecolor(color)
+
+        # Set ticks to match positions exactly
+        ax.set_xticks(positions)
+        ax.set_xticklabels(positions, fontsize=8)
+
+        ax.set_xlabel("Frequency (Hz)", fontsize=8)
+        ax.set_ylabel(title, fontsize=16)
+        ax.set_title("Boxplot by Frequency", fontsize=10)
+
+        ax.legend(
+            handles=[
+                plt.Line2D([0], [0], color="grey", lw=4, label="Both Elytra Stimulation")
+            ],
+            loc="upper right",
+            fontsize=8,
+        )
 
         self.figure.tight_layout(h_pad=0.35)
         self.canvas.draw_idle()

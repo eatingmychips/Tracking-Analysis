@@ -1,4 +1,4 @@
-# project1/core.py
+# tracking/core_tracking.py
 import pypylon
 from pypylon import pylon
 import cv2
@@ -181,7 +181,7 @@ class TrackingSession(QObject):
                                 dx, dy = marker_corners[1] - marker_corners[0]
                                 angle = np.arctan2(dy, dx)
                                 insect_pose = [float(center[0]), float(center[1]), float(angle)]
-                                    
+
                                 # update prev_center in full-res coords
                                 self.prev_center = (center[0], center[1])
                             else: 

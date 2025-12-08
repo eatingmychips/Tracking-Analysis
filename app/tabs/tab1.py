@@ -230,7 +230,7 @@ class Project1Tab(QWidget):
 
     def start_session(self):
         try:
-            config_file = r"L:\biorobotics\data\Vertical&InvertedClimbing\CameraFiles\ARUCO1200.pfs"
+            config_file = r"G:\biorobotics\data\Vertical&InvertedClimbing\CameraFiles\ARUCO1200.pfs"
             self.camera = core_tracking.PylonCamera(config_file)
             com_port = self.com_port_combo.currentText()
             self.serial_obj = serial.Serial(com_port, 115200, timeout=0.1)

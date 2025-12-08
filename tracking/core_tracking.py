@@ -147,6 +147,7 @@ class TrackingSession(QObject):
 
     def run(self):
         self.video_writer = None
+        self.kill_writer = False
         self.camera.open()
         self.camera.start()
         try:
@@ -189,6 +190,7 @@ class TrackingSession(QObject):
                                 
                         if self.save_video:
                             if self.video_writer is None:
+                                self.kill_writer = False
                                 h, w, _ = img.shape
                                 fourcc = cv2.VideoWriter_fourcc(*'XVID')
                                 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -201,22 +203,27 @@ class TrackingSession(QObject):
                                 )
                             self.video_writer.write(img)
                             
+                            if self.kill_writer: 
+                                if self.video_writer is not None: 
+                                    self.video_writer.release()
+                                    self.video_writer = None
+
                         self.pose_data_list.append((time.time(), insect_pose, data))
                         
                     if self.show_cam: 
                         self.frame_ready.emit(img)
                         
         finally:
+            if self.video_writer is not None: 
+                self.video_writer.release()
+                self.video_writer = None 
             self.camera.stop()
 
     def stop(self, stop_loop: bool = True, save: bool = True):
+        self.kill_writer = True
+        
         if stop_loop:
             self.should_run = False
-
-        # Close video writer and reset
-        if self.video_writer is not None:
-            self.video_writer.release()
-            self.video_writer = None
 
         if save: 
             if len(self.pose_data_list) >= 1:
@@ -231,6 +238,7 @@ class TrackingSession(QObject):
                 print(f"Data saved to {self.directory}")
 
             self.pose_data_list = []
+            
         else: 
             return 
         

@@ -433,7 +433,7 @@ def trial_is_outlier(angles, fwd_vel, key):
             return True
         
     if key[0] == "Both": 
-        if min(fwd_vel) < -5: 
+        if min(fwd_vel) < -20: 
             return True
     
     return False

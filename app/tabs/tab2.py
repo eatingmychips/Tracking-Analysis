@@ -159,7 +159,7 @@ class Project2Tab(QWidget):
             antenna_time=self.ant_angle_box.isChecked(),
             antenna_freq=self.ant_freq_box.isChecked(),
             elytra_time=self.ely_vel_box.isChecked(),
-            elytra_freq=self.ant_freq_box.isChecked(),
+            elytra_freq=self.ely_freq_box.isChecked(),
         )
         self.analysis_worker = AnalysisWorker(self.directory, options)
         self.analysis_worker.results_ready.connect(self.on_analysis_results)

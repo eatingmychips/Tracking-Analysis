@@ -88,7 +88,7 @@ def run_analysis(directory):
                     turning_succ_no += 1
 
     lateral_max, fwd_max, angles_max, ang_vel_max = get_max_values(lateral_velocity, forward_velocity, body_angles, angular_velocity)
-
+    print(elytra_succ_no)
     return {
         "body_angles": body_angles, 
         "angles_max": angles_max, 

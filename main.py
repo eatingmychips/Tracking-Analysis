@@ -10,3 +10,6 @@ if __name__ == "__main__":
 
 
 
+#TODO: Fix the naming - it doesn't work 
+#TODO: Add Comments in 
+#TODO: Fix Analysis on NOTHING 

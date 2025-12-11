@@ -9,8 +9,6 @@ if __name__ == "__main__":
     sys.exit(app.exec())
 
 
-
-#TODO: Fix the naming - it doesn't work 
 #TODO: Add Comments in to file saving 
 #TODO: Add better code commenting 
 #TODO: Fix Analysis on NOTHING 

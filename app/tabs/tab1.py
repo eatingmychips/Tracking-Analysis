@@ -1,5 +1,5 @@
 # app/tabs/tab1.py
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QComboBox, QHBoxLayout, QLineEdit, QGroupBox, QCheckBox, QFileDialog, QMessageBox
+from PyQt6.QtWidgets import QSizePolicy, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QComboBox, QHBoxLayout, QLineEdit, QGroupBox, QCheckBox, QFileDialog, QMessageBox
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QSize
 from PyQt6.QtGui import QImage, QPixmap, QIcon
 from tracking import core_tracking
@@ -81,6 +81,11 @@ class Project1Tab(QWidget):
         self.dir_btn.clicked.connect(self.choose_directory)
         dir_layout.addWidget(self.dir_btn)
         self.dir_label = QLabel("(No Folder Selected)")
+        self.dir_label.setFixedWidth(150)
+        self.dir_label.setSizePolicy(
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred
+        )
+        self.dir_label.setWordWrap(False) 
         dir_layout.addWidget(self.dir_label)
         dir_layout.addStretch()
         dir_group.setLayout(dir_layout)
@@ -94,6 +99,11 @@ class Project1Tab(QWidget):
         self.config_btn.clicked.connect(self.choose_config)
         config_layout.addWidget(self.config_btn)
         self.config_label = QLabel("(No Settings Chosen)")
+        self.config_label.setFixedWidth(150)
+        self.config_label.setSizePolicy(
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred
+        )
+        self.config_label.setWordWrap(False)
         config_layout.addWidget(self.config_label)
         config_layout.addStretch()
         config_group.setLayout(config_layout)

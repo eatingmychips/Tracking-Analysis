@@ -9,8 +9,3 @@ if __name__ == "__main__":
     sys.exit(app.exec())
 
 
-#TODO: Add Comments in to file saving 
-#TODO: Add better code commenting 
-#TODO: Fix Analysis on NOTHING 
-
-

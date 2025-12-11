@@ -1,5 +1,5 @@
 # app/tabs/tab1.py
-from PyQt6.QtWidgets import QSizePolicy, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QComboBox, QHBoxLayout, QLineEdit, QGroupBox, QCheckBox, QFileDialog, QMessageBox
+from PyQt6.QtWidgets import QTextEdit, QSizePolicy, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QComboBox, QHBoxLayout, QLineEdit, QGroupBox, QCheckBox, QFileDialog, QMessageBox
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QSize
 from PyQt6.QtGui import QImage, QPixmap, QIcon
 from tracking import core_tracking
@@ -38,6 +38,7 @@ class Project1Tab(QWidget):
     frequency_changed = pyqtSignal(int)
     directory_changed = pyqtSignal(str)
     filename_changed = pyqtSignal(str)
+    notes_changed = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -109,7 +110,7 @@ class Project1Tab(QWidget):
         config_group.setLayout(config_layout)
         left_layout.addWidget(config_group)
 
-        # Frequency Input Group
+        # Filenaming Group 
         nameing_group = QGroupBox("File Naming")
         naming_layout = QHBoxLayout()
         naming_label = QLabel("Filename:")
@@ -117,6 +118,15 @@ class Project1Tab(QWidget):
         self.naming_input = QLineEdit("data")
         self.naming_input.setMinimumWidth(150)
         self.naming_input.textEdited.connect(self.on_filename_changed)
+
+        # Experiment Notes 
+        expnotes_group = QGroupBox("Experiment Notes")
+        expnotes_layout = QHBoxLayout()
+        self.notes_input = QTextEdit()
+        self.notes_input.setMinimumWidth(300)
+        self.notes_input.setMaximumHeight(100)
+        self.notes_input.setPlainText("")
+        self.notes_input.textChanged.connect(self.on_notes_changed)
 
 
         # Frequency Input Group
@@ -185,6 +195,11 @@ class Project1Tab(QWidget):
         nameing_group.setLayout(naming_layout)
         left_layout.addWidget(nameing_group)
 
+        expnotes_layout.addWidget(self.notes_input)
+        expnotes_layout.addStretch()
+        expnotes_group.setLayout(expnotes_layout)
+        left_layout.addWidget(expnotes_group)
+
         freq_layout.addWidget(freq_label)
         freq_layout.addWidget(self.freq_input)
         freq_layout.addWidget(self.up_btn)
@@ -206,7 +221,8 @@ class Project1Tab(QWidget):
 
         # Record Button
         self.record_btn = QPushButton("Start Recording")
-        self.record_btn.setMinimumWidth(120)
+        self.record_btn.setMinimumWidth(325)
+        self.record_btn.setMinimumHeight(50)
         self.record_btn.clicked.connect(self.toggle_recording)
         left_layout.addWidget(self.record_btn, alignment=Qt.AlignmentFlag.AlignLeft)
 
@@ -257,6 +273,10 @@ class Project1Tab(QWidget):
     def on_filename_changed(self, text: str): 
         self.filename_changed.emit(text)
 
+    def on_notes_changed(self): 
+        text = self.notes_input.toPlainText()
+        self.notes_changed.emit(text)
+
     def choose_config(self): 
         dialog = QFileDialog(self)
         self.config_file, _ = dialog.getOpenFileName(self, "Open Config", "", "(*.pfs)")
@@ -304,6 +324,9 @@ class Project1Tab(QWidget):
 
             self.filename_changed.connect(self.session.set_filename)
             self.filename_changed.emit(self.naming_input.text())
+
+            self.notes_changed.connect(self.session.set_notes)
+            self.notes_changed.emit(self.notes_input.toPlainText())
 
             self.directory_changed.connect(self.session.set_directory)
             self.directory_changed.emit(self.dir_label.text())

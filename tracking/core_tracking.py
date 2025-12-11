@@ -153,12 +153,14 @@ class TrackingSession(QObject):
         self.save_tracking = True
 
         self.filename = ""
+        self.notes = ""
         self.directory = ""
         self.frequency = 10
 
         self.prev_center = None
         self.crop_radius = 200
 
+        self.timestamp = None
 
     def run(self):
         self.video_writer = None
@@ -172,6 +174,8 @@ class TrackingSession(QObject):
                 data = self.controller.process_input()
                 if img is not None:
                     if self.recording:    
+                        if self.timestamp is None: 
+                            self.timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                         if self.save_tracking:    
                             if self.prev_center is not None: 
                                 cx, cy = self.prev_center
@@ -208,14 +212,14 @@ class TrackingSession(QObject):
                                 self.kill_writer = False
                                 h, w, _ = img.shape
                                 fourcc = cv2.VideoWriter_fourcc(*'XVID')
-                                timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                                 video_filename = os.path.join(
                                     self.directory,
-                                    f"{self.filename}_{timestamp}.avi"
+                                    f"{self.filename}_{self.timestamp}.avi"
                                 )
                                 self.video_writer = cv2.VideoWriter(
                                     video_filename, fourcc, self.camera.return_fps(), (w, h)
                                 )
+                        
                             self.video_writer.write(img)
                             
                             if self.kill_writer: 
@@ -244,14 +248,19 @@ class TrackingSession(QObject):
             if len(self.pose_data_list) >= 1:
                 df = pd.DataFrame(self.pose_data_list,
                                 columns=['time', 'pose', 'arduino_data'])
-                timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                
+                df['Notes'] = ""
+
+                df.loc[0, 'Notes'] = self.notes
+
                 output_filename = os.path.join(
                     self.directory,
-                    f"{self.filename}_pose_{timestamp}.csv"
+                    f"{self.filename}_{self.timestamp}.csv"
                 )
                 df.to_csv(output_filename, index=False)
                 print(f"Data saved to {self.directory}")
 
+            self.timestamp = None
             self.pose_data_list = []
             
         else: 
@@ -272,6 +281,9 @@ class TrackingSession(QObject):
 
     def set_filename(self, value: str): 
         self.filename = value
+
+    def set_notes(self, value: str): 
+        self.notes = value 
 
     def set_directory(self, value: str): 
         self.directory = value

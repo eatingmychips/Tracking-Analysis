@@ -43,10 +43,21 @@ class PylonCamera:
         self.converter.OutputPixelFormat = pylon.PixelType_BGR8packed
         self.converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
         self.config_file = config_file
+        self.fps = 100
 
     def open(self):
         self.camera.Open()
-        pylon.FeaturePersistence.Load(self.config_file, self.camera.GetNodeMap())
+
+        if self.config_file is not None: 
+            pylon.FeaturePersistence.Load(self.config_file, self.camera.GetNodeMap())
+        
+        try: 
+            nm = self.camera.GetNodeMap()      
+            node = nm.GetNode("BslResultingAcquisitionFrameRate")
+            self.fps = node.GetValue()
+            print("FPS IS: ", self.fps)
+        except Exception as e: 
+            self.fps = 100
 
     def start(self):
         self.camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
@@ -63,6 +74,10 @@ class PylonCamera:
     def stop(self):
         self.camera.StopGrabbing()
         self.camera.Close()
+
+    def return_fps(self): 
+        return self.fps
+    
 
 class JoystickController(QObject):
     random_button = pyqtSignal(bool)
@@ -199,7 +214,7 @@ class TrackingSession(QObject):
                                     f"{self.filename}_{timestamp}.avi"
                                 )
                                 self.video_writer = cv2.VideoWriter(
-                                    video_filename, fourcc, 100, (w, h)
+                                    video_filename, fourcc, self.camera.return_fps(), (w, h)
                                 )
                             self.video_writer.write(img)
                             

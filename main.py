@@ -11,5 +11,8 @@ if __name__ == "__main__":
 
 
 #TODO: Fix the naming - it doesn't work 
-#TODO: Add Comments in 
+#TODO: Add Comments in to file saving 
+#TODO: Add better code commenting 
 #TODO: Fix Analysis on NOTHING 
+
+

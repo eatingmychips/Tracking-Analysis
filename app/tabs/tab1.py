@@ -47,6 +47,7 @@ class Project1Tab(QWidget):
         self.recording = False
         self.serial_obj = None
         self.camera = None
+        self.config_file = None
 
     def init_ui(self):
         # Root: horizontal split
@@ -85,6 +86,19 @@ class Project1Tab(QWidget):
         dir_group.setLayout(dir_layout)
         left_layout.addWidget(dir_group)
 
+        # Config File Selection 
+        config_group = QGroupBox("Camera Settings")
+        config_layout = QHBoxLayout()
+        self.config_btn = QPushButton("Choose Settings")
+        self.config_btn.setMinimumWidth(150)
+        self.config_btn.clicked.connect(self.choose_config)
+        config_layout.addWidget(self.config_btn)
+        self.config_label = QLabel("(No Settings Chosen)")
+        config_layout.addWidget(self.config_label)
+        config_layout.addStretch()
+        config_group.setLayout(config_layout)
+        left_layout.addWidget(config_group)
+
         # Frequency Input Group
         nameing_group = QGroupBox("File Naming")
         naming_layout = QHBoxLayout()
@@ -92,6 +106,7 @@ class Project1Tab(QWidget):
         naming_label.setMinimumWidth(40)
         self.naming_input = QLineEdit("data")
         self.naming_input.setMinimumWidth(150)
+        self.naming_input.textEdited.connect(self.on_filename_changed)
 
 
         # Frequency Input Group
@@ -228,10 +243,26 @@ class Project1Tab(QWidget):
         else: 
             self.dir_label.setText("(No folder Selected)")
 
+
+    def on_filename_changed(self, text: str): 
+        self.filename_changed.emit(text)
+
+    def choose_config(self): 
+        dialog = QFileDialog(self)
+        self.config_file, _ = dialog.getOpenFileName(self, "Open Config", "", "(*.pfs)")
+        if self.config_file: 
+            self.config_label.setText(self.config_file)
+            return self.config_file
+        else: 
+            return None 
+        
+
     def start_session(self):
         try:
-            config_file = r"G:\biorobotics\data\Vertical&InvertedClimbing\CameraFiles\ARUCO1200.pfs"
-            self.camera = core_tracking.PylonCamera(config_file)
+            if self.config_file is not None: 
+                self.camera = core_tracking.PylonCamera(self.config_file)
+            else: 
+                self.camera = core_tracking.PylonCamera(None)
             com_port = self.com_port_combo.currentText()
             self.serial_obj = serial.Serial(com_port, 115200, timeout=0.1)
             self.controller = core_tracking.JoystickController(self.serial_obj)
@@ -386,3 +417,5 @@ class Project1Tab(QWidget):
             Qt.TransformationMode.SmoothTransformation,
         )
         self.camera_label.setPixmap(pix)
+
+

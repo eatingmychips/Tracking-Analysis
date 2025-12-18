@@ -4,7 +4,8 @@ import sys
 
 # Import your tab classes
 from app.tabs.tab1 import Project1Tab
-from app.tabs.tab2 import Project2Tab  # You will implement this similarly to tab1
+from app.tabs.tab2 import Project2Tab  
+from app.tabs.tab3 import Project3Tab
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -17,7 +18,8 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.tabs)
         
         # Add tabs
-        self.tabs.addTab(Project1Tab(self), "Tracking")
+        self.tabs.addTab(Project1Tab(self), "Tracking (IR BKPK)")
+        self.tabs.addTab(Project3Tab(self), "Tracking (Wireless BKPK)")
         self.tabs.addTab(Project2Tab(self), "Run Analysis")
 
 if __name__ == "__main__":
